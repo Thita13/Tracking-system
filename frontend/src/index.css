@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+/* อย่าลืมตรวจสอบว่าไฟล์ JSX ของคุณอยู่ที่ไหน Path ต้องถูกต้อง */
+@source "../src/**/*.{js,ts,jsx,tsx}";
