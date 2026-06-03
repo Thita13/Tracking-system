@@ -1,16 +1,32 @@
+import { useMemo } from 'react';
 import Layout from '../components/Layout';
 import ProjectTable from '../components/ProjectTable';
 import { useProject } from '../context/ProjectContext';
 import { Link } from 'react-router-dom';
 
 function Dashboard() {
-  // 1. สร้างข้อมูลจำลอง (Mock Data) สำหรับการ์ด 4 ใบ
-  // การใช้ Array แบบนี้ ทำให้เราแก้ข้อมูลและสีได้ง่ายในอนาคตครับ
+  const { projects, isLoading, error } = useProject();
+  
+  const stats = useMemo(() => {
+    if (!projects) return { total: 0, inProgress: 0, completed: 0, cancelled: 0 };
+
+    const total = projects.length;
+    const completed = projects.filter(p => p.status === 'COMPLETED').length;
+
+    const inProgress = projects.filter(p => 
+      ['NEW', 'INTERIOR', 'WAITING_CONFIRM', 'PRICING', 'DESIGN_3D'].includes(p.status)
+    ).length;
+
+    const cancelled = 0;
+
+    return { total, inProgress, completed, cancelled };
+  }, [projects]);
+
   const statCards = [
     {
       id: 1,
       title: 'โครงการทั้งหมด',
-      count: 9,
+      count: stats.total,
       bgColor: 'bg-white', // สีขาว
       borderColor: 'border-gray-200',
       textColor: 'text-gray-800',
@@ -19,7 +35,7 @@ function Dashboard() {
     {
       id: 2,
       title: 'โครงการที่กำลังดำเนินการ',
-      count: 8,
+      count: stats.inProgress,
       bgColor: 'bg-[#6EE7B7]', // สีเขียวมิ้นท์ (แกะสีจาก Mockup)
       borderColor: 'border-[#34D399]',
       textColor: 'text-gray-900',
@@ -28,7 +44,7 @@ function Dashboard() {
     {
       id: 3,
       title: 'โครงการที่ดำเนินการสำเร็จ',
-      count: 1,
+      count: stats.completed,
       bgColor: 'bg-[#A5B4FC]', // สีฟ้าอมม่วง (แกะสีจาก Mockup)
       borderColor: 'border-[#818CF8]',
       textColor: 'text-gray-900',
@@ -37,7 +53,7 @@ function Dashboard() {
     {
       id: 4,
       title: 'โครงการที่ไม่ได้ดำเนินการต่อ',
-      count: 0,
+      count: stats.cancelled,
       bgColor: 'bg-[#FDA4AF]', // สีแดง/ชมพู (แกะสีจาก Mockup)
       borderColor: 'border-[#FB7185]',
       textColor: 'text-gray-900',
@@ -45,11 +61,8 @@ function Dashboard() {
     },
   ];
 
-  // ข้อมูลจำลอง รอเชื่อม database
-  const { projects, isLoading, error } = useProject();
-
   return (
-    <Layout role="admin" userName="แจมิน นา">
+    <Layout>
 
       {/* --- ส่วนการ์ดสถิติ 4 ใบ --- */}
       {/* ใช้ CSS Grid แบ่งหน้าจอเป็น 4 คอลัมน์ (ถ้าจอมือถือจะเหลือ 1 คอลัมน์อัตโนมัติ) */}
