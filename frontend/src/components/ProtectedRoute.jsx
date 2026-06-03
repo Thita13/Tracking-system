@@ -2,7 +2,11 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth(); // ดึงสถานะ user จาก AuthContext
+  const { user , isLoading } = useAuth(); // ดึงสถานะ user จาก AuthContext
+
+  if (isLoading) {
+    return <div>กำลังโหลด...</div>;
+  }
 
   // ถ้าไม่มี user ให้ดีดกลับไปหน้า login ทันที
   if (!user) {
