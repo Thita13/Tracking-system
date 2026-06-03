@@ -1,13 +1,14 @@
 import { useState } from 'react'
-
-//navigate มีหน้าที่เปลี่ยนหน้าหลังจาก Login สำเร็จ
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext';
 
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const navigate = useNavigate();
+  const { setUser } = useAuth();
+
 
 const handleLogin = async (e) => {
   e.preventDefault();
@@ -29,8 +30,8 @@ const handleLogin = async (e) => {
     const data = await response.json();
     
     if (response.ok) {
-      localStorage.setItem( 'user', JSON.stringify(data.user));
-
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setUser(data.user);
       navigate('/dashboard');
 
     } else {
