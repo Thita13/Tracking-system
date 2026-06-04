@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import { ProjectProvider } from './context/ProjectContext';
 import { AuthProvider } from './context/AuthContext'; // 1. นำเข้า AuthProvider
 import ProtectedRoute from './components/ProtectedRoute';
+import Users from './pages/Users';
 
 function App() {
   return (
@@ -15,6 +16,11 @@ function App() {
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/users" element={
+              <ProtectedRoute>
+                <Users />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Navigate to="/login" replace />} />
