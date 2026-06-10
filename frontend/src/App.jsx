@@ -5,6 +5,7 @@ import { ProjectProvider } from './context/ProjectContext';
 import { AuthProvider } from './context/AuthContext'; // 1. นำเข้า AuthProvider
 import ProtectedRoute from './components/ProtectedRoute';
 import Users from './pages/Users';
+import CreateProject from './pages/CreateProject';
 
 function App() {
   return (
@@ -18,11 +19,19 @@ function App() {
                 <Dashboard />
               </ProtectedRoute>
             } />
+
             <Route path="/users" element={
               <ProtectedRoute>
                 <Users />
               </ProtectedRoute>
             } />
+
+            <Route path="/CreateProject" element={
+              <ProtectedRoute>
+                <CreateProject />
+              </ProtectedRoute>
+            } />
+
             <Route path="/" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
