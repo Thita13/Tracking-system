@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext'; // 1. นำเข้า A
 import ProtectedRoute from './components/ProtectedRoute';
 import Users from './pages/Users';
 import CreateProject from './pages/CreateProject';
+import Projects from './pages/Projects';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
       <ProjectProvider>
         <BrowserRouter>
           <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/dashboard" element={
               <ProtectedRoute>
@@ -31,8 +33,14 @@ function App() {
                 <CreateProject />
               </ProtectedRoute>
             } />
+            
+            <Route path="/projects" element={
+              <ProtectedRoute>
+                <Projects />
+              </ProtectedRoute>
+            } />
 
-            <Route path="/" element={<Navigate to="/login" replace />} />
+
           </Routes>
         </BrowserRouter>
       </ProjectProvider>
