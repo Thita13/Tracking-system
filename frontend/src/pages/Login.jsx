@@ -47,19 +47,8 @@ const handleLogin = async (e) => {
   return (
     /* กล่องนอกสุด: เต็มหน้าจอ, ไม่มี Padding, ลบสีพื้นหลังเทาออก */
     <div className="flex h-screen w-full font-sans">
-        
-      {/* --- ส่วนด้านซ้าย: รูปภาพพื้นหลังพร้อมโทนสีฟ้า (กินพื้นที่ 50% ของจอ) --- */}
-      <div className="relative hidden w-1/2 md:block">
-        <img 
-          src="\login-bg.jpg" 
-          alt="Interior design background"
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-        <div className="absolute inset-0 bg-blue-600/60 mix-blend-multiply" />
-      </div>
 
-      {/* --- ส่วนด้านขวา: พื้นหลังน้ำเงินเต็มพื้นที่ฝั่งขวา (กินพื้นที่ 50% ของจอ) --- */}
-      <div className="flex w-full flex-col items-center justify-center bg-blue-600 md:w-1/2 p-8">
+      <div className="flex w-full flex-col items-center justify-center bg-blue-500 p-8">
         
         {/* การ์ดฟอร์มสีขาวข้างใน */}
         <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-xl md:p-12">

@@ -9,7 +9,7 @@ function Projects() {
   const location = useLocation();
   
   // สถานะสำหรับการกรองข้อมูล (Dropdown)
-  const [filterType, setFilterType] = useState('โครงการทั้งหมด');
+  const [filterType, setFilterType] = useState('ประเภทโครงการ');
   const [filterStatus, setFilterStatus] = useState(location.state?.filterStatus || 'โครงการทั้งหมด');
 
   // กรองข้อมูลตามสถานะที่เลือก

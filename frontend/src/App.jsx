@@ -7,6 +7,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Users from './pages/Users';
 import CreateProject from './pages/CreateProject';
 import Projects from './pages/Projects';
+import MyProjects from './pages/MyProjects';
+import ProjectDetail from './pages/ProjectDetail';
 
 function App() {
   return (
@@ -33,13 +35,24 @@ function App() {
                 <CreateProject />
               </ProtectedRoute>
             } />
-            
+
             <Route path="/projects" element={
               <ProtectedRoute>
                 <Projects />
               </ProtectedRoute>
             } />
 
+            <Route path="/myprojects" element={
+              <ProtectedRoute>
+                <MyProjects />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/projects/:id" element={
+              <ProtectedRoute>
+                <ProjectDetail />
+              </ProtectedRoute>
+            } />
 
           </Routes>
         </BrowserRouter>

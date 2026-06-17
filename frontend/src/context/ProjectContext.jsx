@@ -29,7 +29,9 @@ export function ProjectProvider({ children }) {
           assignedTo: item.assignedTo || null 
         }));
 
-        setProjects(formattedData);
+        const sortedData = formattedData.sort((a, b) => b.id - a.id);
+
+        setProjects(sortedData);
         setIsLoading(false);
       } catch (err) {
         console.error("Fetch Error:", err);

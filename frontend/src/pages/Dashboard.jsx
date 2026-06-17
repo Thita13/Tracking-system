@@ -76,9 +76,9 @@ function Dashboard() {
             key={card.id}
             className={`flex flex-col rounded-3xl border shadow-sm p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg cursor-pointer block ${card.bgColor} ${card.borderColor} ${card.textColor}`}
           >
-            <h3 className="text-sm font-semibold opacity-80 mb-2">{card.title}</h3>
-            <div className="text-6xl font-extrabold mb-6">{card.count}</div>
-            <div className="mt-auto border-t border-black/10 pt-4 flex items-center justify-between text-sm font-medium hover:opacity-70 transition-opacity">
+            <h3 className="text-base font-extrabold opacity-80 mb-2">{card.title}</h3>
+            <div className="text-4xl font-bold mb-6">{card.count}</div>
+            <div className="mt-auto border-t border-black/10 pt-4 flex items-center justify-between text-base font-medium hover:opacity-70 transition-opacity">
               <span>ดูทั้งหมด</span>
               <span className="text-lg leading-none">→</span>
             </div>
@@ -88,7 +88,7 @@ function Dashboard() {
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">โครงการทั้งหมด</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">โครงการทั้งหมด</h2>
         <ProjectTable 
           projects={projects} 
           isLoading={isLoading} 

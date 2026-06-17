@@ -52,11 +52,6 @@ function CreateProject() {
       return;
     }
 
-    console.log("--- ข้อมูลที่กำลังจะส่งไป ---");
-    console.log("projectName:", formData.projectName);
-    console.log("assignedInterior (ID):", formData.assignedInterior);
-    console.log("task_type:", formData.projectType); // ตรวจสอบว่ามีค่าจริง ไม่ใช่ค่าว่าง
-
     const data = new FormData();
     data.append('task_name', formData.projectName);
     data.append('task_type', formData.projectType);
@@ -64,7 +59,7 @@ function CreateProject() {
     data.append('customer_phone', formData.customerPhone);
     data.append('description', formData.details);
     data.append('status', 'NEW');
-    data.append('id_users', formData.assignedInterior);
+    data.append('id_users', user.id);
     if (formData.file) {
       data.append('file', formData.file);
     }
@@ -80,6 +75,16 @@ function CreateProject() {
       if (!response.ok) {
         throw new Error(result.message || 'ไม่สามารถสร้างงานใหม่ได้');
       }
+      await fetch('http://localhost:5000/tracking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'SEND_TO_INTERIOR',
+        id_task: result.taskId, // ใช้ ID จากงานที่เพิ่งสร้าง
+        id_users: formData.assignedInterior, // ID ของ Interior ที่เลือก
+        department: 'Interior'
+      })
+    });
 
       toast.success('สร้างงานใหม่และมอบหมายสำเร็จ!');
       window.location.reload();

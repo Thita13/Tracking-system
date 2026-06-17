@@ -31,12 +31,12 @@ function Layout({ children }) {
     interior: [
       { name: 'แดชบอร์ด', path: '/dashboard' },
       { name: 'โครงการทั้งหมด', path: '/projects' },
-      { name: 'งานของฉัน', path: '/design' },
+      { name: 'งานของฉัน', path: '/myprojects' },
     ],
     pricing: [
       { name: 'แดชบอร์ด', path: '/dashboard' },
       { name: 'โครงการทั้งหมด', path: '/projects' },
-      { name: 'งานของฉัน', path: '/pricing' },
+      { name: 'งานของฉัน', path: '/myprojects' },
     ],
   };
 

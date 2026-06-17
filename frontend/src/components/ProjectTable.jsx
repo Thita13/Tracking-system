@@ -1,4 +1,5 @@
 import { getStatusColor } from '../utils/helpers';
+import { Link } from 'react-router-dom';
 
 // Component นี้จะรับ Props เข้ามา 5 ตัว เพื่อให้ยืดหยุ่นในการใช้งาน
 function ProjectTable({ projects, isLoading, error, renderActionButtons, systemRole }) {
@@ -69,9 +70,11 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
                   {/* ถ้ารับฟังก์ชันสร้างปุ่มมา ก็ให้เรียกใช้งาน (สำหรับหน้า Projects) */}
                   {renderActionButtons && renderActionButtons(project, systemRole)}
 
-                  <button className="bg-[#FEF08A] hover:bg-[#FDE047] text-gray-800 px-5 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm inline-block ml-2">
-                    รายละเอียด
-                  </button>
+                  <Link to={`/projects/${project.id}`}>
+                    <button className="bg-[#FEF08A] hover:bg-[#FDE047] text-gray-800 px-5 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm inline-block ml-2">
+                      รายละเอียด
+                    </button>
+                  </Link>
                 </td>
               </tr>
             ))
