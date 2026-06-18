@@ -161,12 +161,27 @@ app.post('/login', (req, res) => {
 
 // Create task
 app.post('/tasks', upload.single('file'), (req, res) => {
+    const {
+        task_name, task_type, customer_name, customer_phone,
+        description, status, id_users, assigned_to
+    } = req.body;
 
-    const { task_name, task_type, customer_name, customer_phone, description, status, id_users } = req.body;
+    // SQL นี้ตรงกับชื่อคอลัมน์ใน DB ของคุณแล้ว (assign_to)
+    const sql = `INSERT INTO tasks (
+        task_name, task_type, customer_name, customer_phone, 
+        description, status, id_users, assign_to, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
 
-    const sql = `INSERT INTO tasks (task_name, task_type, customer_name, customer_phone, description, status, id_users, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`;
-
-    db.query(sql, [task_name, task_type, customer_name, customer_phone, description, status || 'NEW', parseInt(id_users)], (err, results) => {
+    db.query(sql, [
+        task_name,
+        task_type,
+        customer_name,
+        customer_phone,
+        description,
+        status || 'NEW',
+        parseInt(id_users),
+        assigned_to ? parseInt(assigned_to) : null
+    ], (err, results) => {
         if (err) {
             console.error("SQL ERROR:", err);
             return res.status(500).json({ message: "Database Error", details: err.message });
@@ -174,19 +189,21 @@ app.post('/tasks', upload.single('file'), (req, res) => {
 
         const newTaskId = results.insertId;
 
-        if (req.file) {
-            const insertFileSql = 'INSERT INTO files (file_name, file_path, version, id_task) VALUES (?, ?, 1, ?)';
-            db.query(insertFileSql, [req.file.originalname, req.file.path, newTaskId], (fileErr) => {
-                if (fileErr) {
-                    console.error("SQL ERROR (files):", fileErr);
-                    return res.status(500).json({ message: "บันทึกข้อมูลงานสำเร็จ แต่บันทึกไฟล์ไม่สำเร็จ" });
-                }
-                res.status(201).json({ message: 'สร้างงานและบันทึกไฟล์สำเร็จ', taskId: newTaskId });
-            });
-        } else {
-            // กรณีไม่มีไฟล์
-            res.status(201).json({ message: 'สร้างงานสำเร็จ', taskId: newTaskId });
-        }
+        // บันทึกประวัติลง tracking
+        const trackingSql = 'INSERT INTO tracking (status, id_task, id_users, department, action_at) VALUES (?, ?, ?, ?, NOW())';
+        db.query(trackingSql, ['CREATE_TASK', newTaskId, parseInt(id_users), 'Project Director'], (trackErr) => {
+            if (trackErr) console.error("Tracking Error:", trackErr);
+
+            if (req.file) {
+                const insertFileSql = 'INSERT INTO files (file_name, file_path, version, id_task) VALUES (?, ?, 1, ?)';
+                db.query(insertFileSql, [req.file.originalname, req.file.path, newTaskId], (fileErr) => {
+                    if (fileErr) return res.status(500).json({ message: "บันทึกงานสำเร็จ แต่บันทึกไฟล์ไม่สำเร็จ" });
+                    res.status(201).json({ message: 'สร้างงานและบันทึกไฟล์สำเร็จ', taskId: newTaskId });
+                });
+            } else {
+                res.status(201).json({ message: 'สร้างงานสำเร็จ', taskId: newTaskId });
+            }
+        });
     });
 });
 
@@ -228,40 +245,27 @@ app.get('/tasks', (req, res) => {
     });
 });
 
+
 // Get task by ID
-app.get('/tasks/:id', async (req, res) => {
-    const id = req.params.id;
-    try {
-        // SQL ดึงข้อมูลหลัก + ชื่อคนสร้าง
-        const sql = `
-            SELECT t.*, u.username AS created_by, u.role AS created_by_role 
-            FROM tasks t 
-            LEFT JOIN users u ON t.id_users = u.id_users 
-            WHERE t.id_task = ?
-        `;
-        const taskRes = await new Promise((resolve) => db.query(sql, [id], (err, res) => resolve(res)));
-
-        // SQL ดึงชื่อผู้รับผิดชอบล่าสุดจาก tracking
-        const trackSql = `
-            SELECT u.username, tr.department 
-            FROM tracking tr 
-            LEFT JOIN users u ON tr.id_users = u.id_users 
-            WHERE tr.id_task = ? 
-            ORDER BY tr.action_at DESC LIMIT 1
-        `;
-        const trackRes = await new Promise((resolve) => db.query(trackSql, [id], (err, res) => resolve(res)));
-
-        const project = {
-            ...taskRes[0],
-            assigned_to: trackRes.length > 0 ? trackRes[0].username : '-',
-            assigned_dept: trackRes.length > 0 ? trackRes[0].department : '-'
-        };
-        res.json(project);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+app.get('/tasks/:id', (req, res) => {
+    const taskId = req.params.id;
+    const sql = `
+        SELECT t.*, 
+               u1.username AS created_by, 
+               u1.role AS created_by_role, 
+               u2.username AS assigned_to_name,
+               u2.role AS assigned_to_role
+        FROM tasks t
+        JOIN users u1 ON t.id_users = u1.id_users
+        LEFT JOIN users u2 ON t.assign_to = u2.id_users
+        WHERE t.id_task = ?`;
+    
+    db.query(sql, [taskId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ message: 'Task not found' });
+        res.json(results[0]);
+    });
 });
-
 
 // Update task by ID
 app.put('/tasks/:id', (req, res) => {
