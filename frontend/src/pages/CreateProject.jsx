@@ -60,6 +60,8 @@ function CreateProject() {
     data.append('description', formData.details);
     data.append('status', 'NEW');
     data.append('id_users', user.id);
+    data.append('assigned_to', formData.assignedInterior);
+
     if (formData.file) {
       data.append('file', formData.file);
     }
@@ -81,7 +83,7 @@ function CreateProject() {
       body: JSON.stringify({
         status: 'SEND_TO_INTERIOR',
         id_task: result.taskId, // ใช้ ID จากงานที่เพิ่งสร้าง
-        id_users: formData.assignedInterior, // ID ของ Interior ที่เลือก
+       id_users: formData.assignedInterior, // ID ของ Interior ที่เลือก
         department: 'Interior'
       })
     });

@@ -10,6 +10,7 @@ import Projects from './pages/Projects';
 import MyProjects from './pages/MyProjects';
 import ProjectDetail from './pages/ProjectDetail';
 
+
 function App() {
   return (
     <AuthProvider> {/* 2. หุ้มด้วย AuthProvider */}
@@ -60,4 +61,5 @@ function App() {
     </AuthProvider>
   );
 }
+
 export default App;
