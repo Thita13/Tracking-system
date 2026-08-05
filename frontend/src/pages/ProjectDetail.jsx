@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { getStatusColor } from '../utils/helpers';
+import ProjectActionBox from '../components/ProjectActionBox';
 
 function ProjectDetail() {
     const { id } = useParams();
@@ -35,6 +36,27 @@ function ProjectDetail() {
         const statusOrder = ['CREATE_TASK', 'SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'];
         const currentMappedStatus = mapStatus(project?.status);
         return statusOrder.indexOf(currentMappedStatus) > statusOrder.indexOf(stepKey);
+    };
+
+    const handleAction = async (actionType, extraData = null) => {
+        try {
+            console.log("Action ที่เลือก:", actionType, "ข้อมูลเพิ่มเติม:", extraData);
+            
+            // ตัวอย่างการเชื่อมต่อ API ไปยัง Backend (เปิดใช้งานเมื่อฝั่ง Backend พร้อม)
+            /*
+            const response = await fetch(`http://localhost:5000/tasks/${id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: actionType, dept: extraData, userId: user.id })
+            });
+            if (response.ok) {
+                alert("ดำเนินการสำเร็จ!");
+                window.location.reload();
+            }
+            */
+        } catch (err) {
+            console.error("Action error:", err);
+        }
     };
 
     useEffect(() => {
@@ -85,7 +107,7 @@ function ProjectDetail() {
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="font-bold text-gray-800 mb-8">Timeline</h3>
                         <div className="flex items-center justify-between relative px-4">
-                            <div className="absolute top-5 left-12 right-8 h-1 bg-gray-100 -z-0"></div>
+                            <div className="absolute top-5 left-15 right-8 h-1 bg-gray-100 -z-0"></div>
                             {steps.map((step, idx) => {
                                 // 1. ดึงประวัติทั้งหมดของโปรเจกต์นี้
                                 const currentMappedStatus = mapStatus(project.status);
@@ -191,7 +213,11 @@ function ProjectDetail() {
                 {/* ฝั่งขวา */}
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                        <h3 className="font-bold text-gray-800 mb-4">มอบหมายงาน</h3>
+                        <ProjectActionBox 
+                        user={user} 
+                        project={project} 
+                        handleAction={handleAction} 
+                    />
                     </div>
 
                     {/* สร้างโดย */}

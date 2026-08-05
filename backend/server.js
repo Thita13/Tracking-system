@@ -441,3 +441,21 @@ app.delete('/files/:id', (req, res) => {
 app.listen(5000, () => {
     console.log('Server running on port 5000');
 });
+
+// Get notifications (tasks assigned to user)
+app.get('/tasks/notifications/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const sql = `
+        SELECT t.id_task, t.task_name, t.status, t.created_at 
+        FROM tasks t
+        WHERE t.assign_to = ? AND t.status != 'COMPLETE'
+        ORDER BY t.created_at DESC
+    `;
+    db.query(sql, [userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching notifications:", err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results || []);
+    });
+});
