@@ -26,6 +26,7 @@ function ProjectDetail() {
         const mapping = {
             'NEW': 'CREATE_TASK',
             'INTERIOR': 'SEND_TO_INTERIOR',
+            'WAITING_CONFIRM': 'SEND_TO_INTERIOR', // ถ้ารอตรวจสอบ ให้ถือว่ายังอยู่ในขั้นตอนออกแบบ (Interior) เพื่อรอผู้บริหารตรวจ
             'PRICING': 'SEND_TO_PRICING',
             'DESIGN_3D': 'SEND_TO_3D'
         };
@@ -41,21 +42,37 @@ function ProjectDetail() {
     const handleAction = async (actionType, extraData = null) => {
         try {
             console.log("Action ที่เลือก:", actionType, "ข้อมูลเพิ่มเติม:", extraData);
-            
-            // ตัวอย่างการเชื่อมต่อ API ไปยัง Backend (เปิดใช้งานเมื่อฝั่ง Backend พร้อม)
-            /*
+
+            const dept = extraData?.department || '';
+            const memberId = extraData?.memberId || null;
+
             const response = await fetch(`http://localhost:5000/tasks/${id}/action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: actionType, dept: extraData, userId: user.id })
+                body: JSON.stringify({
+                    action: actionType,
+                    dept: dept,
+                    memberId: memberId,
+                    userId: user.id,
+                    role: user.role
+                })
             });
+
             if (response.ok) {
-                alert("ดำเนินการสำเร็จ!");
-                window.location.reload();
+                // ไม่ต้องใช้ alert แด้งกวนใจ หรือถ้าต้องการให้คงไว้ก็ได้
+                // เรียกฟังก์ชันดึงข้อมูลโปรเจกต์ใหม่ตรงนี้แทนการ reload ทั้งหน้าเว็บ เพื่อให้ State อัปเดตทันที
+                if (typeof fetchProjectDetail === 'function') {
+                    fetchProjectDetail();
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                const errData = await response.json();
+                alert(`เกิดข้อผิดพลาด: ${errData.error || 'ไม่สามารถทำรายการได้'}`);
             }
-            */
         } catch (err) {
             console.error("Action error:", err);
+            alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
         }
     };
 
@@ -108,29 +125,79 @@ function ProjectDetail() {
                         <h3 className="font-bold text-gray-800 mb-8">Timeline</h3>
                         <div className="flex items-center justify-between relative px-4">
                             <div className="absolute top-5 left-15 right-8 h-1 bg-gray-100 -z-0"></div>
+
                             {steps.map((step, idx) => {
-                                // 1. ดึงประวัติทั้งหมดของโปรเจกต์นี้
                                 const currentMappedStatus = mapStatus(project.status);
                                 const statusOrder = ['CREATE_TASK', 'SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'];
 
-                                // หาตำแหน่งปัจจุบัน และตำแหน่งของ step นี้
                                 const currentIndex = statusOrder.indexOf(currentMappedStatus);
                                 const stepIndex = statusOrder.indexOf(step.key);
 
-                                // 2. กรองเฉพาะข้อมูลที่ "ควรจะถึง" หรือ "ถึงแล้ว" เท่านั้น
-                                // ถ้า stepIndex > currentIndex แปลว่างานยังไม่ถึงขั้นตอนนี้ -> stepHistory ต้องเป็น []
-                                const stepHistory = (stepIndex <= currentIndex)
-                                    ? tracking.filter(t => t.status === step.key || mapStatus(t.status) === step.key)
-                                    : [];
+                                // 1. กรองประวัติ Tracking แยกตามแต่ละสเตป
+                             const stepHistory = tracking.filter(t => {
+                                    if (step.key === 'SEND_TO_INTERIOR') {
+                                        // ขั้นตอนออกแบบ: แสดงเวลาตอนเริ่มงาน, ส่งงาน หรือตอนส่งกลับหาผู้บริหารของแผนก Interior
+                                        return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) || 
+                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
+                                    }
+                                    if (step.key === 'SEND_TO_PRICING') {
+                                        // ขั้นตอนประเมินราคา: แสดงเวลาตอนเริ่มงานของ Pricing หรือตอนที่ Pricing ส่งงานกลับหาผู้บริหาร
+                                        return t.status === 'START_PRICING' || 
+                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Pricing');
+                                    }
+                                    if (step.key === 'SEND_TO_3D') {
+                                        // ขั้นตอน 3D: แสดงเวลาตอนเริ่มทำ 3D หรือตอนส่งงานของ 3D
+                                        return t.status === 'START_3D' || t.status === 'SEND_TO_3D' || 
+                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior' && project.status === 'DESIGN_3D');
+                                    }
+                                    return t.status === step.key || mapStatus(t.status) === step.key;
+                                });
 
-                                // 3. กำหนดสถานะ
-                                const isCompleted = currentIndex > stepIndex || (currentIndex === stepIndex && stepHistory.length > 0);
-                                const isCurrent = !isCompleted && currentIndex === stepIndex;
+                                // 2. กำหนดเงื่อนไขความสำเร็จ (isCompleted)
+                                let isCompleted = false;
+
+                                if (step.key === 'CREATE_TASK') {
+                                    isCompleted = currentIndex > stepIndex || project.status !== 'NEW';
+                                }
+                                else if (step.key === 'SEND_TO_INTERIOR') {
+                                    isCompleted = ['PRICING', 'PRICING_DONE', 'DESIGN_3D', 'COMPLETED'].includes(project.status) ||
+                                        (project.status === 'WAITING_CONFIRM' && tracking.some(t => t.department === 'Interior' && t.status === 'SEND_TO_PROJECTDIRECTOR'));
+                                }
+                                else if (step.key === 'SEND_TO_PRICING') {
+                                    isCompleted = ['DESIGN_3D', 'COMPLETED'].includes(project.status) ||
+                                        (project.status === 'WAITING_CONFIRM' && tracking.some(t => t.department === 'Pricing' && t.status === 'SEND_TO_PROJECTDIRECTOR'));
+                                }
+                                else if (step.key === 'SEND_TO_3D') {
+                                    isCompleted = project.status === 'COMPLETED';
+                                }
+
+                                // 3. กำหนดเงื่อนไขกำลังดำเนินการ (isCurrent) ให้ประกาศก่อนนำไปใช้งาน
+                                let isCurrent = false;
+
+                                if (!isCompleted) {
+                                    if (step.key === 'CREATE_TASK') {
+                                        isCurrent = project.status === 'NEW';
+                                    }
+                                    else if (step.key === 'SEND_TO_INTERIOR') {
+                                        const lastTracking = tracking.length > 0 ? tracking[tracking.length - 1] : null;
+                                        const lastDept = lastTracking ? lastTracking.department : '';
+                                        isCurrent = ['NEW', 'INTERIOR'].includes(project.status) ||
+                                            (project.status === 'WAITING_CONFIRM' && lastDept === 'Interior');
+                                    }
+                                    else if (step.key === 'SEND_TO_PRICING') {
+                                        const isPricingStarted = tracking.some(t => t.status === 'START_PRICING') || Boolean(project.assign_to);
+                                        isCurrent = project.status === 'PRICING' && isPricingStarted;
+                                    }
+                                    else if (step.key === 'SEND_TO_3D') {
+                                        const is3DStarted = tracking.some(t => t.status === 'START_3D');
+                                        isCurrent = project.status === 'DESIGN_3D' && is3DStarted;
+                                    }
+                                }
 
                                 return (
                                     <div key={idx} className="z-10 flex flex-col items-center">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 border-2 
-                ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
+                                            ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
                                                 isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
                                             {isCompleted ? '✓' : idx + 1}
                                         </div>
@@ -138,11 +205,10 @@ function ProjectDetail() {
                                         <span className="text-[12px] font-bold text-gray-700">{step.label}</span>
                                         <span className="text-[12px] text-gray-500 mb-2">{step.dept}</span>
 
-                                        {/* แสดงเวลา */}
                                         <div className="text-[11px] text-gray-400 text-center">
                                             {stepHistory.map((h, hIdx) => (
                                                 <div key={hIdx}>
-                                                    {new Date(h.action_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' , year: 'numeric' })}
+                                                    {new Date(h.action_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                                     {' '}{new Date(h.action_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
                                                 </div>
                                             ))}
@@ -213,11 +279,12 @@ function ProjectDetail() {
                 {/* ฝั่งขวา */}
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                        <ProjectActionBox 
-                        user={user} 
-                        project={project} 
-                        handleAction={handleAction} 
-                    />
+                        <ProjectActionBox
+                            user={user}
+                            project={project}
+                            tracking={tracking}  // <-- เพิ่มบรรทัดนี้ส่งเข้าไปด้วย
+                            handleAction={handleAction}
+                        />
                     </div>
 
                     {/* สร้างโดย */}

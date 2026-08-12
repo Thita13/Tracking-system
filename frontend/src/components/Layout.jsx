@@ -3,16 +3,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import Notification from './Notification'; // นำเข้าคอมโพเนนต์ Notification ที่แยกไว้
 
 function Layout({ children }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
-  const notificationRef = useRef(null); // ref for notification dropdown
 
-  const [taskNotis, setTaskNotis] = useState([]); // เก็บรายการแจ้งเตือนงาน
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false); // State เปิดปิดกล่อง Noti
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentMenus, setCurrentMenus] = useState([]);
@@ -48,37 +46,11 @@ function Layout({ children }) {
     setCurrentMenus(menuConfig[normalizedRole] || menuConfig['admin']);
   }, [user]);
 
-  // ดึงข้อมูลแจ้งเตือนงานของ User คนนี้จาก Backend
-  useEffect(() => {
-    const userId = user?.id; // ดึง id จาก object user ที่เก็บตอน Login
-    if (!userId) return;
-
-    const fetchNotifications = async () => {
-      try {
-        const res = await fetch(`http://localhost:5000/tasks/notifications/${userId}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setTaskNotis(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch notifications:", err);
-      }
-    };
-
-    fetchNotifications();
-    // เช็คอัปเดตแจ้งเตือนอัตโนมัติทุกๆ 30 วินาที
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // ปิด Dropdown เมื่อคลิกข้างนอก (ทั้งโปรไฟล์และกระดิ่ง)
+  // ปิด Dropdown โปรไฟล์เมื่อคลิกข้างนอก
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
-      }
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setIsNotificationOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -118,54 +90,11 @@ function Layout({ children }) {
 
         <div className="flex items-center space-x-6 text-white pr-4">
           
-          {/* Notification Bell & Dropdown */}
-          <div className="relative" ref={notificationRef}>
-            <button 
-              className="relative p-2 rounded-full hover:bg-white/10 transition-all" 
-              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-            >
-              🔔 
-              {taskNotis.length > 0 && (
-                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
-                  {taskNotis.length}
-                </span>
-              )}
-            </button>
-
-            {/* กล่องแสดงรายการแจ้งเตือน */}
-            {isNotificationOpen && (
-              <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden text-gray-800">
-                <div className="flex justify-between items-center px-5 py-3 border-b border-gray-100 bg-gray-50">
-                  <h4 className="font-bold text-sm text-gray-900">การแจ้งเตือนงาน</h4>
-                  <span className="text-xs bg-blue-100 text-[#188BFE] px-2 py-0.5 rounded-full font-semibold">
-                    {taskNotis.length} งานใหม่
-                  </span>
-                </div>
-
-                <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
-                  {taskNotis.length > 0 ? (
-                    taskNotis.map((task) => (
-                      <div 
-                        key={task.id_task}
-                        onClick={() => {
-                          setIsNotificationOpen(false);
-                          navigate(`/projects/${task.id_task}`); // คลิกแล้วพุ่งไปหน้า ProjectDetail ทันที
-                        }}
-                        className="px-5 py-3 hover:bg-blue-50 cursor-pointer transition-colors space-y-1"
-                      >
-                        <p className="text-xs font-bold text-gray-900">#{task.id_task} - {task.task_name}</p>
-                        <p className="text-[11px] text-gray-500">สถานะ: <span className="font-semibold text-blue-600">{task.status}</span></p>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-8 text-center text-gray-400 text-xs">
-                      ไม่มีงานใหม่ที่ต้องดำเนินการ
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* เรียกใช้คอมโพเนนต์ Notification ที่แยกไฟล์ไว้ */}
+          <Notification 
+          userId={user?.id || user?.id_users} 
+          role={user?.role}
+          />
 
           {/* User Dropdown */}
           <div className="relative" ref={dropdownRef}>
