@@ -259,7 +259,7 @@ app.get('/tasks/:id', (req, res) => {
         JOIN users u1 ON t.id_users = u1.id_users
         LEFT JOIN users u2 ON t.assign_to = u2.id_users
         WHERE t.id_task = ?`;
-    
+
     db.query(sql, [taskId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         if (results.length === 0) return res.status(404).json({ message: 'Task not found' });
@@ -438,22 +438,166 @@ app.delete('/files/:id', (req, res) => {
     });
 });
 
+// Task Action Handler (จัดการเปลี่ยนสถานะ มอบหมายงาน และบันทึก Tracking)
+app.post('/tasks/:id/action', (req, res) => {
+    const taskId = req.params.id;
+    const { action, dept, memberId, userId, role } = req.body;
+
+    let updateTaskSql = '';
+    let updateParams = [];
+    let trackingStatus = action; // ใช้ action ที่ส่งมาจากหน้าบ้านเป็น status หลัก
+    let departmentName = dept || role || 'System';
+
+ // 1. กำหนดสถานะงาน (tasks.status) ตาม Action ที่ส่งเข้ามา
+    if (action === 'ASSIGN') {
+        updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
+        updateParams = [memberId || null, 'INTERIOR', taskId];
+        trackingStatus = 'SEND_TO_INTERIOR';
+        departmentName = 'Interior';
+
+    } else if (action === 'START_WORK') {
+        // สำหรับ Interior กดเริ่มงาน
+        updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
+        updateParams = [userId, 'INTERIOR', taskId];
+        trackingStatus = 'START_INTERIOR'; // ตรงกับ ENUM ใน DB
+        departmentName = 'Interior';
+
+    } else if (action === 'CLAIM_PRICING') {
+        // สำหรับ Pricing กดรับงาน
+        updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
+        updateParams = [userId, 'PRICING', taskId];
+        trackingStatus = 'START_PRICING'; // ตรงกับ ENUM ใน DB
+        departmentName = 'Pricing';
+
+    } else if (action === 'SEND_TO_PROJECTDIRECTOR' || action === 'SUBMIT_WORK') {
+        // ใช้ร่วมกันทั้ง Interior และ Pricing เมื่อส่งงานกลับหาผู้บริหาร
+        updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
+        updateParams = ['WAITING_CONFIRM', taskId];
+        trackingStatus = 'SEND_TO_PROJECTDIRECTOR';
+        departmentName = role; // บันทึกตามแผนกที่กดส่ง
+
+    } else if (action === 'NEXT_STEP') {
+        // รับค่า memberId และ dept จาก extraData หรือ req.body
+        const { memberId, dept } = req.body; 
+
+        // ตรวจสอบว่าถ้ามีการเลือกพนักงาน (ส่ง memberId มาด้วย) แปลว่ากำลังส่งต่อไปยังขั้นตอน 3D
+        if (memberId) {
+            updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
+            updateParams = [memberId, 'DESIGN_3D', taskId]; // เปลี่ยนสถานะเป็น DESIGN_3D ถูกต้อง
+            trackingStatus = 'START_3D'; 
+            departmentName = dept || 'Interior';
+        } else {
+            // กรณีปกติ (ส่งจาก Interior ไป Pricing ขั้นตอนที่ 3)
+            updateTaskSql = 'UPDATE tasks SET assign_to = NULL, status = ? WHERE id_task = ?';
+            updateParams = ['PRICING', taskId];
+            trackingStatus = 'SEND_TO_PRICING';
+            departmentName = 'Pricing';
+        }
+
+    } else if (action === 'REVISE') {
+        updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
+        updateParams = ['REVISE', taskId];
+        trackingStatus = 'REQUEST_REVISION'; 
+
+    } else if (action === 'COMPLETE') {
+        updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
+        updateParams = ['COMPLETED', taskId];
+        trackingStatus = 'COMPLETE';
+
+    } else {
+        updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
+        updateParams = [action, taskId];
+    }
+
+    // 2. อัปเดตตาราง tasks
+    db.query(updateTaskSql, updateParams, (err, result) => {
+        if (err) {
+            console.error("Error updating task:", err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        // 3. บันทึกประวัติลงตาราง tracking (ถ้า trackingStatus เป็น null ให้ข้ามการบันทึกชั่วคราว)
+        if (!trackingStatus) {
+            return res.json({ message: 'Action executed successfully' });
+        }
+
+        const trackingSql = 'INSERT INTO tracking (status, id_task, id_users, department, action_at) VALUES (?, ?, ?, ?, NOW())';
+        db.query(trackingSql, [trackingStatus, taskId, userId, departmentName], (trackErr) => {
+            if (trackErr) {
+                console.error("Error inserting tracking:", trackErr);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ message: 'Action executed successfully' });
+        });
+    });
+});
+
 app.listen(5000, () => {
     console.log('Server running on port 5000');
 });
 
 // Get notifications (tasks assigned to user)
-app.get('/tasks/notifications/:userId', (req, res) => {
-    const userId = req.params.userId;
-    const sql = `
-        SELECT t.id_task, t.task_name, t.status, t.created_at 
-        FROM tasks t
-        WHERE t.assign_to = ? AND t.status != 'COMPLETE'
-        ORDER BY t.created_at DESC
-    `;
-    db.query(sql, [userId], (err, results) => {
+app.get('/tasks/notifications/:userId/:role', (req, res) => {
+    const { userId, role } = req.params;
+    const normalizedRole = role ? role.toLowerCase().trim() : '';
+
+    let sql = '';
+    let params = [];
+
+    // 1. ผู้บริหาร (Admin / Project Director)
+    if (normalizedRole === 'admin' || normalizedRole === 'project director' || normalizedRole === 'project_director') {
+        sql = `
+            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            FROM tasks t
+            JOIN tracking tr ON t.id_task = tr.id_task
+            WHERE t.status != 'COMPLETE' 
+            AND (tr.status = 'SEND_TO_PROJECTDIRECTOR' OR tr.status = 'SUBMIT_WORK' OR tr.status = 'PENDING_REVIEW' OR t.assign_to = ?)
+            ORDER BY t.created_at DESC
+        `;
+        params = [userId];
+
+        // 2. แผนก Interior (จะได้รับการแจ้งเตือนทั้งงานที่ Assign ให้ตัวเอง และงานใหม่สถานะ NEW)
+    } else if (normalizedRole === 'interior') {
+        sql = `
+            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            FROM tasks t
+            WHERE t.status != 'COMPLETE' 
+            AND (t.assign_to = ? OR t.status = 'NEW')
+            ORDER BY t.created_at DESC
+        `;
+        params = [userId];
+
+        // 3. แผนกอื่นๆ เช่น Pricing (จะเห็นงานที่ Assign ให้ตัวเอง หรือ งานที่รอรับในสเตจ PRICING)
+    } else {
+        sql = `
+            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            FROM tasks t
+            WHERE t.status != 'COMPLETE' 
+            AND (t.assign_to = ? OR t.status = 'PRICING')
+            ORDER BY t.created_at DESC
+        `;
+        params = [userId];
+    }
+
+    db.query(sql, params, (err, results) => {
         if (err) {
             console.error("Error fetching notifications:", err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results || []);
+    });
+});
+
+app.get('/users/by-role/:role', (req, res) => {
+    const { role } = req.params;
+
+    // ใช้รูปแบบ Callback ให้ตรงกับจุดอื่นๆ ในโปรเจกต์ของคุณ
+    // และเปลี่ยน id_user / name ให้ตรงกับโครงสร้างตาราง users จริงๆ (id_users, username)
+    const sql = 'SELECT id_users, username, role FROM users WHERE role = ?';
+
+    db.query(sql, [role], (err, results) => {
+        if (err) {
+            console.error("Database Error:", err);
             return res.status(500).json({ error: err.message });
         }
         res.json(results || []);
