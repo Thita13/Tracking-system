@@ -448,7 +448,7 @@ app.post('/tasks/:id/action', (req, res) => {
     let trackingStatus = action; // ใช้ action ที่ส่งมาจากหน้าบ้านเป็น status หลัก
     let departmentName = dept || role || 'System';
 
- // 1. กำหนดสถานะงาน (tasks.status) ตาม Action ที่ส่งเข้ามา
+    // 1. กำหนดสถานะงาน (tasks.status) ตาม Action ที่ส่งเข้ามา
     if (action === 'ASSIGN') {
         updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
         updateParams = [memberId || null, 'INTERIOR', taskId];
@@ -478,13 +478,13 @@ app.post('/tasks/:id/action', (req, res) => {
 
     } else if (action === 'NEXT_STEP') {
         // รับค่า memberId และ dept จาก extraData หรือ req.body
-        const { memberId, dept } = req.body; 
+        const { memberId, dept } = req.body;
 
         // ตรวจสอบว่าถ้ามีการเลือกพนักงาน (ส่ง memberId มาด้วย) แปลว่ากำลังส่งต่อไปยังขั้นตอน 3D
-        if (memberId) {
+        if (memberId && memberId !== "") {
             updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
             updateParams = [memberId, 'DESIGN_3D', taskId]; // เปลี่ยนสถานะเป็น DESIGN_3D ถูกต้อง
-            trackingStatus = 'START_3D'; 
+            trackingStatus = 'SEND_TO_3D';
             departmentName = dept || 'Interior';
         } else {
             // กรณีปกติ (ส่งจาก Interior ไป Pricing ขั้นตอนที่ 3)
@@ -494,10 +494,24 @@ app.post('/tasks/:id/action', (req, res) => {
             departmentName = 'Pricing';
         }
 
-    } else if (action === 'REVISE') {
+    } else if (action === 'START_3D_WORK') {
+        updateTaskSql = 'UPDATE tasks SET assign_to = ?, status = ? WHERE id_task = ?';
+        updateParams = [userId, 'DESIGN_3D', taskId];
+        trackingStatus = 'START_3D'; // บันทึกว่าเริ่มงาน 3D แล้ว (เพื่อให้หน้าบ้านเปลี่ยนเป็นสีฟ้า)
+        departmentName = 'Interior';
+
+    } else if (action === 'SUBMIT_3D_WORK') {
         updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
-        updateParams = ['REVISE', taskId];
-        trackingStatus = 'REQUEST_REVISION'; 
+        updateParams = ['COMPLETED', taskId]; // เปลี่ยนสถานะงานหลักเป็นจบโครงการ
+        trackingStatus = 'COMPLETE'; // ใช้คำว่า COMPLETE ที่ฐานข้อมูลรู้จักอยู่แล้ว
+        departmentName = 'Interior';
+
+    } else if (action === 'REVISE') {
+        const rollbackStatus = dept || 'INTERIOR';
+
+        updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
+        updateParams = [rollbackStatus, taskId]; // จะถูกเปลี่ยนเป็น INTERIOR, PRICING หรือ DESIGN_3D
+        trackingStatus = 'REQUEST_REVISION';
 
     } else if (action === 'COMPLETE') {
         updateTaskSql = 'UPDATE tasks SET status = ? WHERE id_task = ?';
@@ -562,7 +576,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
             SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
             FROM tasks t
             WHERE t.status != 'COMPLETE' 
-            AND (t.assign_to = ? OR t.status = 'NEW')
+            AND t.assign_to = ?
             ORDER BY t.created_at DESC
         `;
         params = [userId];
@@ -573,7 +587,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
             SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
             FROM tasks t
             WHERE t.status != 'COMPLETE' 
-            AND (t.assign_to = ? OR t.status = 'PRICING')
+            AND (t.assign_to = ? OR (t.status = 'PRICING' AND t.assign_to IS NULL))
             ORDER BY t.created_at DESC
         `;
         params = [userId];
