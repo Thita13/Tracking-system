@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCircle2, Clock } from 'lucide-react';
+import { Bell, CheckCircle2, CheckCheck } from 'lucide-react'; // 🔴 เพิ่มไอคอน CheckCheck
 
 export default function Notification({ userId, role }) {
   const [taskNotis, setTaskNotis] = useState([]);
-  const [readTasks, setReadTasks] = useState([]); 
+  const [readTasks, setReadTasks] = useState([]);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const notificationRef = useRef(null);
   const navigate = useNavigate();
@@ -34,7 +34,7 @@ export default function Notification({ userId, role }) {
       try {
         const res = await fetch(`http://localhost:5000/tasks/notifications/${userId}/${role}`);
         const data = await res.json();
-        
+
         if (Array.isArray(data)) {
           setTaskNotis(data);
         }
@@ -44,7 +44,7 @@ export default function Notification({ userId, role }) {
     };
 
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); 
+    const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [userId, role]);
 
@@ -66,13 +66,13 @@ export default function Notification({ userId, role }) {
     const diffTime = Math.abs(now - past);
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-    if(diffDays === 0) {
-        const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-        if(diffHours === 0) {
-            const diffMinutes = Math.floor(diffTime / (1000 * 60));
-            return diffMinutes <= 1 ? 'เมื่อสักครู่' : `${diffMinutes} นาทีที่แล้ว`;
-        }
-        return `${diffHours} ชั่วโมงที่แล้ว`;
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMinutes = Math.floor(diffTime / (1000 * 60));
+        return diffMinutes <= 1 ? 'เมื่อสักครู่' : `${diffMinutes} นาทีที่แล้ว`;
+      }
+      return `${diffHours} ชั่วโมงที่แล้ว`;
     }
     return `${diffDays} วันที่แล้ว`;
   };
@@ -82,10 +82,38 @@ export default function Notification({ userId, role }) {
     return !readTasks.some(item => item.id_task === task.id_task && item.created_at === task.created_at);
   }).length;
 
+  // 🔴 ฟังก์ชันสำหรับกด "อ่านทั้งหมด"
+  const markAllAsRead = () => {
+    const now = new Date().toISOString();
+    const newReadTasks = [...readTasks];
+    let hasChanges = false;
+
+    // วนลูปเช็คทุกรายการแจ้งเตือน
+    taskNotis.forEach(task => {
+      const isRead = newReadTasks.some(item => item.id_task === task.id_task && item.created_at === task.created_at);
+
+      // ถ้ายังไม่ได้อ่าน ให้เพิ่มลงไปใน Array
+      if (!isRead) {
+        newReadTasks.push({
+          id_task: task.id_task,
+          created_at: task.created_at,
+          readAt: now
+        });
+        hasChanges = true;
+      }
+    });
+
+    // ถ้ามีการอัปเดตใหม่ ค่อยบันทึกลง State และ LocalStorage
+    if (hasChanges) {
+      setReadTasks(newReadTasks);
+      localStorage.setItem(storageKey, JSON.stringify(newReadTasks));
+    }
+  };
+
   return (
     <div className="relative" ref={notificationRef}>
-      <button 
-        className="relative p-2.5 rounded-full border-2 border-white/80 text-white flex items-center justify-center shadow-sm focus:outline-none hover:bg-white/20 transition-all" 
+      <button
+        className="relative p-2.5 rounded-full border-2 border-white/80 text-white flex items-center justify-center shadow-sm focus:outline-none hover:bg-white/20 transition-all"
         onClick={() => setIsNotificationOpen(!isNotificationOpen)}
       >
         <Bell className="w-5 h-5 text-white fill-white" />
@@ -95,7 +123,7 @@ export default function Notification({ userId, role }) {
           </span>
         )}
       </button>
-      
+
       {/* กล่องแสดงรายการแจ้งเตือน */}
       {isNotificationOpen && (
         <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden text-gray-800 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -107,40 +135,59 @@ export default function Notification({ userId, role }) {
                 {unreadCount}
               </span>
             </div>
+
+            {/* 🔴 ปุ่มอ่านทั้งหมด (โชว์เฉพาะเวลาที่มีแจ้งเตือนที่ยังไม่อ่าน) */}
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                className="flex items-center space-x-1 text-xs font-semibold text-blue-500 hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>อ่านทั้งหมด</span>
+              </button>
+            )}
           </div>
 
           <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
             {taskNotis.length > 0 ? (
               taskNotis.map((task) => {
-                // แก้ไขให้เช็คเทียบทั้ง id_task และ created_at พร้อมกัน
                 const isRead = readTasks.some(item => item.id_task === task.id_task && item.created_at === task.created_at);
-                const isNew = !task.status || task.status === 'NEW';
+
+                // 🔴 กำหนดเงื่อนไขว่า Action ไหนบ้างที่นับว่าเป็น "งานใหม่" (ป้ายสีแดง)
+                const isNew = ['CREATE_TASK', 'SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'].includes(task.tracking_status);
+
+                // 🔴 สร้างฟังก์ชันเปลี่ยนชื่อสถานะภาษาอังกฤษให้เป็นข้อความไทยสวยๆ
+                const formatStatusText = (status) => {
+                  const statusMap = {
+                    'REQUEST_REVISION': 'งานแก้ไข',
+                    'SUBMIT_WORK': 'ส่งงาน',
+                    'SUBMIT_3D_WORK': 'ส่งงาน 3D',
+                    'SEND_TO_PROJECTDIRECTOR': 'รอตรวจสอบ',
+                    'COMPLETE': 'จบโครงการ'
+                  };
+                  return statusMap[status] || status;
+                };
 
                 return (
-                  <div 
+                  <div
                     key={`${task.id_task}-${task.created_at}`}
                     onClick={() => {
-                      // บันทึกเวลาที่กดอ่าน พร้อมแนบ created_at ป้องกัน ID ซ้ำ
                       if (!isRead) {
-                        const newReadItem = { 
-                          id_task: task.id_task, 
+                        const newReadItem = {
+                          id_task: task.id_task,
                           created_at: task.created_at,
-                          readAt: new Date().toISOString() 
+                          readAt: new Date().toISOString()
                         };
-                        
                         const updatedReadTasks = [...readTasks, newReadItem];
                         setReadTasks(updatedReadTasks);
                         localStorage.setItem(storageKey, JSON.stringify(updatedReadTasks));
                       }
-
                       setIsNotificationOpen(false);
                       navigate(`/projects/${task.id_task}`);
                     }}
-                    className={`p-4 cursor-pointer transition-all flex items-start space-x-3 text-left ${
-                      isRead ? 'bg-white opacity-60 hover:bg-gray-50' : 'bg-blue-50/40 hover:bg-blue-50/80'
-                    }`}
+                    className={`p-4 cursor-pointer transition-all flex items-start space-x-3 text-left ${isRead ? 'bg-white opacity-60 hover:bg-gray-50' : 'bg-blue-50/40 hover:bg-blue-50/80'
+                      }`}
                   >
-                    {/* รายละเอียดตรงกลาง */}
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm truncate transition-colors ${isRead ? 'font-normal text-gray-600' : 'font-bold text-gray-900'}`}>
                         {task.task_name}
@@ -152,10 +199,10 @@ export default function Notification({ userId, role }) {
                         <span className="text-[11px] text-gray-400 font-medium">
                           {formatTimeAgo(task.created_at)}
                         </span>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${
-                          isRead ? 'bg-gray-100 text-gray-500' : (isNew ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700')
-                        }`}>
-                          {isRead ? 'อ่านแล้ว' : (isNew ? 'งานใหม่' : task.status)}
+                        <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${isRead ? 'bg-gray-100 text-gray-500' : (isNew ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700')
+                          }`}>
+                          {/* 🔴 ดึงข้อความภาษาไทยมาโชว์ที่ป้าย Notification */}
+                          {isRead ? 'อ่านแล้ว' : (isNew ? 'งานใหม่' : formatStatusText(task.tracking_status || task.status))}
                         </span>
                       </div>
                     </div>
