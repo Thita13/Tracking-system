@@ -1,10 +1,12 @@
 import { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 import { AuthContext } from '../context/AuthContext';
 
 function CreateProject() {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     projectName: '',
@@ -89,7 +91,9 @@ function CreateProject() {
     });
 
       toast.success('สร้างงานใหม่และมอบหมายสำเร็จ!');
-      window.location.reload();
+
+      navigate(`/projects/${result.taskId}`);
+
     } catch (error) {
       const errorMsg = error.message || "เกิดข้อผิดพลาดไม่ทราบสาเหตุ";
       console.error("รายละเอียด Error:", error);

@@ -134,21 +134,18 @@ function ProjectDetail() {
                                 const stepIndex = statusOrder.indexOf(step.key);
 
                                 // 1. กรองประวัติ Tracking แยกตามแต่ละสเตป
-                             const stepHistory = tracking.filter(t => {
+                                const stepHistory = tracking.filter(t => {
                                     if (step.key === 'SEND_TO_INTERIOR') {
-                                        // ขั้นตอนออกแบบ: แสดงเวลาตอนเริ่มงาน, ส่งงาน หรือตอนส่งกลับหาผู้บริหารของแผนก Interior
                                         return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) || 
                                                (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
                                     }
                                     if (step.key === 'SEND_TO_PRICING') {
-                                        // ขั้นตอนประเมินราคา: แสดงเวลาตอนเริ่มงานของ Pricing หรือตอนที่ Pricing ส่งงานกลับหาผู้บริหาร
                                         return t.status === 'START_PRICING' || 
                                                (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Pricing');
                                     }
                                     if (step.key === 'SEND_TO_3D') {
-                                        // ขั้นตอน 3D: แสดงเวลาตอนเริ่มทำ 3D หรือตอนส่งงานของ 3D
-                                        return t.status === 'START_3D' || t.status === 'SEND_TO_3D' || 
-                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior' && project.status === 'DESIGN_3D');
+                                        // สำคัญ: ต้องดึงเฉพาะตอนพนักงานกดรับงาน (START_3D) หรือส่งงาน (SEND_TO_3D) เท่านั้น
+                                       return t.status === 'START_3D' || t.status === 'COMPLETE';
                                     }
                                     return t.status === step.key || mapStatus(t.status) === step.key;
                                 });
@@ -156,8 +153,10 @@ function ProjectDetail() {
                                 // 2. กำหนดเงื่อนไขความสำเร็จ (isCompleted)
                                 let isCompleted = false;
 
+                                const has3DStarted = tracking.some(t => t.status === 'START_3D');
+
                                 if (step.key === 'CREATE_TASK') {
-                                    isCompleted = currentIndex > stepIndex || project.status !== 'NEW';
+                                    isCompleted = true;
                                 }
                                 else if (step.key === 'SEND_TO_INTERIOR') {
                                     isCompleted = ['PRICING', 'PRICING_DONE', 'DESIGN_3D', 'COMPLETED'].includes(project.status) ||
@@ -168,27 +167,27 @@ function ProjectDetail() {
                                         (project.status === 'WAITING_CONFIRM' && tracking.some(t => t.department === 'Pricing' && t.status === 'SEND_TO_PROJECTDIRECTOR'));
                                 }
                                 else if (step.key === 'SEND_TO_3D') {
-                                    isCompleted = project.status === 'COMPLETED';
+                                   isCompleted = project.status === 'COMPLETED' || 
+                                        (project.status === 'WAITING_CONFIRM' && has3DStarted);
                                 }
 
-                                // 3. กำหนดเงื่อนไขกำลังดำเนินการ (isCurrent) ให้ประกาศก่อนนำไปใช้งาน
+                                // 3. กำหนดเงื่อนไขกำลังดำเนินการ (isCurrent)
                                 let isCurrent = false;
 
                                 if (!isCompleted) {
                                     if (step.key === 'CREATE_TASK') {
-                                        isCurrent = project.status === 'NEW';
+                                        isCurrent = false;
                                     }
                                     else if (step.key === 'SEND_TO_INTERIOR') {
-                                        const lastTracking = tracking.length > 0 ? tracking[tracking.length - 1] : null;
-                                        const lastDept = lastTracking ? lastTracking.department : '';
-                                        isCurrent = ['NEW', 'INTERIOR'].includes(project.status) ||
-                                            (project.status === 'WAITING_CONFIRM' && lastDept === 'Interior');
+                                        const isInteriorStarted = tracking.some(t => t.status === 'START_INTERIOR');
+                                        isCurrent = project.status === 'INTERIOR' && isInteriorStarted;
                                     }
                                     else if (step.key === 'SEND_TO_PRICING') {
                                         const isPricingStarted = tracking.some(t => t.status === 'START_PRICING') || Boolean(project.assign_to);
                                         isCurrent = project.status === 'PRICING' && isPricingStarted;
                                     }
                                     else if (step.key === 'SEND_TO_3D') {
+                                        // สำคัญ: จะเป็นสีฟ้าก็ต่อเมื่อสถานะเป็น DESIGN_3D และพนักงานกดรับงานแล้วจริงๆ (มี START_3D ใน tracking)
                                         const is3DStarted = tracking.some(t => t.status === 'START_3D');
                                         isCurrent = project.status === 'DESIGN_3D' && is3DStarted;
                                     }
@@ -198,7 +197,7 @@ function ProjectDetail() {
                                     <div key={idx} className="z-10 flex flex-col items-center">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 border-2 
                                             ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
-                                                isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                              isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
                                             {isCompleted ? '✓' : idx + 1}
                                         </div>
 
