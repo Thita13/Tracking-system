@@ -561,34 +561,54 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
     // 1. ผู้บริหาร (Admin / Project Director)
     if (normalizedRole === 'admin' || normalizedRole === 'project director' || normalizedRole === 'project_director') {
         sql = `
-            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
             FROM tasks t
             JOIN tracking tr ON t.id_task = tr.id_task
-            WHERE t.status != 'COMPLETE' 
-            AND (tr.status = 'SEND_TO_PROJECTDIRECTOR' OR tr.status = 'SUBMIT_WORK' OR tr.status = 'PENDING_REVIEW' OR t.assign_to = ?)
-            ORDER BY t.created_at DESC
+            WHERE (
+                (t.status = 'WAITING_CONFIRM' AND tr.status IN ('SEND_TO_PROJECTDIRECTOR', 'SUBMIT_WORK', 'SUBMIT_3D_WORK', 'PENDING_REVIEW')) OR
+                (t.status = 'COMPLETED' AND tr.status = 'COMPLETE')
+            )
+            ORDER BY tr.action_at DESC
         `;
-        params = [userId];
+        params = [];
 
-        // 2. แผนก Interior (จะได้รับการแจ้งเตือนทั้งงานที่ Assign ให้ตัวเอง และงานใหม่สถานะ NEW)
+    // 2. แผนก Interior
     } else if (normalizedRole === 'interior') {
         sql = `
-            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
             FROM tasks t
-            WHERE t.status != 'COMPLETE' 
-            AND t.assign_to = ?
-            ORDER BY t.created_at DESC
+            JOIN tracking tr ON t.id_task = tr.id_task
+            WHERE t.assign_to = ? 
+            AND (
+                (
+                    -- 🔴 ประวัติออกแบบรอบแรก (จะคงอยู่ตลอดไป ยกเว้นจะถูกส่งไป 3D ถึงจะโดนซ่อน)
+                    tr.status IN ('SEND_TO_INTERIOR', 'REQUEST_REVISION')
+                    AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_INTERIOR'), '2000-01-01')
+                    AND NOT EXISTS (SELECT 1 FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_3D')
+                ) 
+                OR 
+                (
+                    -- 🔴 ประวัติรอบ 3D (จะคงอยู่ตลอดไปเช่นกัน)
+                    tr.status IN ('SEND_TO_3D', 'REQUEST_REVISION')
+                    AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_3D'), '2000-01-01')
+                )
+            )
+            ORDER BY tr.action_at DESC
         `;
         params = [userId];
 
-        // 3. แผนกอื่นๆ เช่น Pricing (จะเห็นงานที่ Assign ให้ตัวเอง หรือ งานที่รอรับในสเตจ PRICING)
+    // 3. แผนกอื่นๆ เช่น Pricing
     } else {
         sql = `
-            SELECT DISTINCT t.id_task, t.task_name, t.task_type, t.status, t.created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
             FROM tasks t
-            WHERE t.status != 'COMPLETE' 
-            AND (t.assign_to = ? OR (t.status = 'PRICING' AND t.assign_to IS NULL))
-            ORDER BY t.created_at DESC
+            JOIN tracking tr ON t.id_task = tr.id_task
+            -- 🔴 ลบเงื่อนไขล็อกสถานะ PRICING ออกแล้ว ทำให้ประวัติยังอยู่แม้โครงการปิด (COMPLETED)
+            WHERE (t.assign_to = ? OR (t.status = 'PRICING' AND t.assign_to IS NULL))
+            AND tr.status IN ('SEND_TO_PRICING', 'REQUEST_REVISION')
+            AND LOWER(tr.department) = 'pricing'
+            AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_PRICING'), '2000-01-01')
+            ORDER BY tr.action_at DESC
         `;
         params = [userId];
     }
@@ -601,6 +621,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         res.json(results || []);
     });
 });
+
 
 app.get('/users/by-role/:role', (req, res) => {
     const { role } = req.params;
