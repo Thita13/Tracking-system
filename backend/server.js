@@ -375,66 +375,71 @@ app.get('/tasks/:id/comments', (req, res) => {
     });
 });
 
-//file upload
 app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
     const taskId = req.params.id;
+    
+    if (!req.file) {
+        return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
+    }
+
     const fileName = req.file.originalname;
-    const fileNameStored = req.file.filename; // ใช้ตัวนี้ครับ
-    const filePathToStore = 'uploads/' + fileNameStored; // Path ที่จะเก็บใน DB
+    const fileNameStored = req.file.filename; 
+    const filePathToStore = 'uploads/' + fileNameStored; 
 
     const versionSql = `SELECT COALESCE(MAX(version), 0) + 1 AS nextVersion FROM files WHERE id_task = ?`;
 
     db.query(versionSql, [taskId], (err, versionResults) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+        if (err) return res.status(500).json({ error: err.message });
 
         const nextVersion = versionResults[0].nextVersion;
+        // ลบ id_users ออกจากคำสั่ง SQL แล้ว
         const insertSql = 'INSERT INTO files (file_name, file_path, id_task, version) VALUES (?, ?, ?, ?)';
 
         db.query(insertSql, [fileName, filePathToStore, taskId, nextVersion], (err, results) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-
-            // --- ย้าย res.status มาไว้ข้างใน callback นี้ เพื่อให้แน่ใจว่าบันทึก DB เสร็จแล้ว ---
-            const publicUrl = `http://localhost:5000/${filePathToStore}`;
+            if (err) return res.status(500).json({ error: err.message });
 
             res.status(201).json({
                 message: 'File uploaded successfully',
                 fileId: results.insertId,
-                version: nextVersion,
-                fileUrl: publicUrl
+                fileUrl: `http://localhost:5000/${filePathToStore}`
             });
         });
     });
 });
 
-// Get files by task ID
 app.get('/tasks/:id/files', (req, res) => {
     const taskId = req.params.id;
+    // ลบ id_users ออกจากคำสั่ง SQL แล้ว
     const sql = 'SELECT id_files, file_name, file_path, version, created_at FROM files WHERE id_task = ? ORDER BY version DESC';
     db.query(sql, [taskId], (err, results) => {
-        if (err) {
-            console.error("Database Error:", err);
-            return res.status(500).json({ error: err.message });
-        }
+        if (err) return res.status(500).json({ error: err.message });
         res.json(results || []);
     });
 });
 
-//delete file by ID
-app.delete('/files/:id', (req, res) => {
-    const fileId = req.params.id;
-    const sql = 'DELETE FROM files WHERE id_files = ?';
-    db.query(sql, [fileId], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ message: 'File not found' });
-        }
-        res.json({ message: 'File deleted' });
+app.delete('/tasks/:taskId/files/:fileId', (req, res) => {
+    const { taskId, fileId } = req.params;
+
+    const selectSql = 'SELECT file_path FROM files WHERE id_files = ? AND id_task = ?';
+    db.query(selectSql, [fileId, taskId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ error: 'ไม่พบไฟล์' });
+
+        const filePath = results[0].file_path;
+        const deleteSql = 'DELETE FROM files WHERE id_files = ?';
+        
+        db.query(deleteSql, [fileId], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            if (filePath) {
+                const fileName = filePath.split(/[\\/]/).pop();
+                const absolutePath = path.join(__dirname, 'uploads', fileName);
+                if (fs.existsSync(absolutePath)) {
+                    fs.unlinkSync(absolutePath);
+                }
+            }
+            res.json({ message: 'ลบไฟล์สำเร็จ' });
+        });
     });
 });
 
