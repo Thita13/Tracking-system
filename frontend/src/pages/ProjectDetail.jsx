@@ -26,23 +26,15 @@ function ProjectDetail() {
         const mapping = {
             'NEW': 'CREATE_TASK',
             'INTERIOR': 'SEND_TO_INTERIOR',
-            'WAITING_CONFIRM': 'SEND_TO_INTERIOR', // ถ้ารอตรวจสอบ ให้ถือว่ายังอยู่ในขั้นตอนออกแบบ (Interior) เพื่อรอผู้บริหารตรวจ
+            'WAITING_CONFIRM': 'SEND_TO_INTERIOR',
             'PRICING': 'SEND_TO_PRICING',
             'DESIGN_3D': 'SEND_TO_3D'
         };
         return mapping[status] || status;
     };
 
-    const isStepFinished = (stepKey) => {
-        const statusOrder = ['CREATE_TASK', 'SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'];
-        const currentMappedStatus = mapStatus(project?.status);
-        return statusOrder.indexOf(currentMappedStatus) > statusOrder.indexOf(stepKey);
-    };
-
     const handleAction = async (actionType, extraData = null) => {
         try {
-            console.log("Action ที่เลือก:", actionType, "ข้อมูลเพิ่มเติม:", extraData);
-
             const dept = extraData?.department || '';
             const memberId = extraData?.memberId || null;
 
@@ -59,13 +51,7 @@ function ProjectDetail() {
             });
 
             if (response.ok) {
-                // ไม่ต้องใช้ alert แด้งกวนใจ หรือถ้าต้องการให้คงไว้ก็ได้
-                // เรียกฟังก์ชันดึงข้อมูลโปรเจกต์ใหม่ตรงนี้แทนการ reload ทั้งหน้าเว็บ เพื่อให้ State อัปเดตทันที
-                if (typeof fetchProjectDetail === 'function') {
-                    fetchProjectDetail();
-                } else {
-                    window.location.reload();
-                }
+                window.location.reload();
             } else {
                 const errData = await response.json();
                 alert(`เกิดข้อผิดพลาด: ${errData.error || 'ไม่สามารถทำรายการได้'}`);
@@ -86,7 +72,6 @@ function ProjectDetail() {
 
                 const resT = await fetch(`http://localhost:5000/tasks/${id}/tracking`);
                 const trackData = await resT.json();
-                console.log("ข้อมูล Tracking ที่ได้จาก Database:", trackData);
                 setTracking(Array.isArray(trackData) ? trackData : []);
 
                 const resF = await fetch(`http://localhost:5000/tasks/${id}/files`);
@@ -100,6 +85,45 @@ function ProjectDetail() {
         };
         fetchAllData();
     }, [id]);
+
+
+    // 🔴 1. เงื่อนไขการตรวจสอบว่า "สามารถเพิ่มไฟล์ได้ไหม"
+    const isProjectActive = project && project.status !== 'WAITING_CONFIRM' && project.status !== 'COMPLETED';
+    const isAdminOrPD = user?.role === 'Admin' || user?.role === 'Project Director';
+    const isAssignedToMe = project && String(project.assign_to) === String(user.id);
+
+    // เช็คว่ากด "รับงาน" ไปหรือยังในขั้นตอนปัจจุบัน
+    let hasStartedCurrentStage = false;
+    if (project?.status === 'INTERIOR') {
+        hasStartedCurrentStage = tracking.some(t => t.status === 'START_INTERIOR');
+    } else if (project?.status === 'PRICING') {
+        hasStartedCurrentStage = tracking.some(t => t.status === 'START_PRICING');
+    } else if (project?.status === 'DESIGN_3D') {
+        hasStartedCurrentStage = tracking.some(t => t.status === 'START_3D');
+    }
+
+    // จะโชว์ปุ่ม Add File ก็ต่อเมื่อ (เป็น Admin/PD) หรือ (เป็นเจ้าของงานและกดรับงานแล้ว)
+    const canUploadFiles = isProjectActive && (isAdminOrPD || (isAssignedToMe && hasStartedCurrentStage));
+
+    // 🔴 2. ฟังก์ชันลบไฟล์
+    const handleDeleteFile = async (fileId) => {
+        if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')) return;
+
+        try {
+            const response = await fetch(`http://localhost:5000/tasks/${id}/files/${fileId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                setFiles(prevFiles => prevFiles.filter(f => f.id_files !== fileId));
+            } else {
+                alert('เกิดข้อผิดพลาดในการลบไฟล์ หรือคุณไม่มีสิทธิ์ลบไฟล์นี้');
+            }
+        } catch (err) {
+            console.error("Delete file error:", err);
+            alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+        }
+    };
 
     if (isLoading) return <Layout><div className="text-center py-20">กำลังโหลดข้อมูล...</div></Layout>;
     if (!project) return <Layout><div className="text-center py-20 text-red-500">ไม่พบข้อมูลโครงการ</div></Layout>;
@@ -130,10 +154,6 @@ function ProjectDetail() {
                                 const currentMappedStatus = mapStatus(project.status);
                                 const statusOrder = ['CREATE_TASK', 'SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'];
 
-                                const currentIndex = statusOrder.indexOf(currentMappedStatus);
-                                const stepIndex = statusOrder.indexOf(step.key);
-
-                                // 1. กรองประวัติ Tracking แยกตามแต่ละสเตป
                                 const stepHistory = tracking.filter(t => {
                                     if (step.key === 'SEND_TO_INTERIOR') {
                                         return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) || 
@@ -144,15 +164,12 @@ function ProjectDetail() {
                                                (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Pricing');
                                     }
                                     if (step.key === 'SEND_TO_3D') {
-                                        // สำคัญ: ต้องดึงเฉพาะตอนพนักงานกดรับงาน (START_3D) หรือส่งงาน (SEND_TO_3D) เท่านั้น
                                        return t.status === 'START_3D' || t.status === 'COMPLETE';
                                     }
                                     return t.status === step.key || mapStatus(t.status) === step.key;
                                 });
 
-                                // 2. กำหนดเงื่อนไขความสำเร็จ (isCompleted)
                                 let isCompleted = false;
-
                                 const has3DStarted = tracking.some(t => t.status === 'START_3D');
 
                                 if (step.key === 'CREATE_TASK') {
@@ -171,9 +188,7 @@ function ProjectDetail() {
                                         (project.status === 'WAITING_CONFIRM' && has3DStarted);
                                 }
 
-                                // 3. กำหนดเงื่อนไขกำลังดำเนินการ (isCurrent)
                                 let isCurrent = false;
-
                                 if (!isCompleted) {
                                     if (step.key === 'CREATE_TASK') {
                                         isCurrent = false;
@@ -187,7 +202,6 @@ function ProjectDetail() {
                                         isCurrent = project.status === 'PRICING' && isPricingStarted;
                                     }
                                     else if (step.key === 'SEND_TO_3D') {
-                                        // สำคัญ: จะเป็นสีฟ้าก็ต่อเมื่อสถานะเป็น DESIGN_3D และพนักงานกดรับงานแล้วจริงๆ (มี START_3D ใน tracking)
                                         const is3DStarted = tracking.some(t => t.status === 'START_3D');
                                         isCurrent = project.status === 'DESIGN_3D' && is3DStarted;
                                     }
@@ -237,29 +251,76 @@ function ProjectDetail() {
                             <h4 className="font-bold text-gray-800 mb-2">รายละเอียดงาน</h4>
                             <div className="w-full p-4 bg-gray-50 rounded-xl text-sm text-gray-700 min-h-[120px] whitespace-pre-line border border-gray-100">{project.description || "ไม่มีรายละเอียด"}</div>
                         </div>
+
+                        {/* ไฟล์งาน */}
                         <div className="mt-6">
                             <h4 className="font-bold text-gray-800 mb-3">ไฟล์งาน</h4>
-                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl text-center text-gray-400 text-sm cursor-pointer hover:border-blue-400 transition-colors">
-                                <span>คลิกหรือลากไฟล์มาวางเพื่ออัปโหลดไฟล์งาน</span>
-                                <input type="file" className="hidden" onChange={async (e) => {
-                                    const file = e.target.files[0];
-                                    if (!file) return;
-                                    const formData = new FormData();
-                                    formData.append('file', file);
-                                    formData.append('taskId', id);
-                                    try {
-                                        const response = await fetch(`http://localhost:5000/tasks/${id}/files`, { method: 'POST', body: formData });
-                                        if (response.ok) { alert("อัปโหลดสำเร็จ!"); window.location.reload(); }
-                                    } catch (err) { console.error("Upload failed:", err); }
-                                }} />
-                            </label>
-                            <div className="flex flex-wrap gap-3 mt-4">
-                                {Array.isArray(files) && files.length > 0 ? files.map(file => (
-                                    <div key={file.id_files} className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                        <span className="text-red-500">📄</span>
-                                        <a href={`http://localhost:5000/uploads/${file.file_path.split(/[\\/]/).pop()}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-gray-700 hover:underline">{file.file_name}</a>
+                            
+                            <div className="space-y-3">
+                                <div className="flex flex-col gap-2">
+                                    {Array.isArray(files) && files.length > 0 ? files.map(file => {
+                                        const ext = file.file_name.split('.').pop().toUpperCase();
+                                        const isPDF = ext === 'PDF';
+                                        const isImage = ['JPG', 'JPEG', 'PNG'].includes(ext);
+
+                                        // 🔴 3. เช็คว่าเป็นไฟล์ที่ user ปัจจุบันอัปโหลดเองหรือไม่
+                                        const isMyFile = String(file.id_users) === String(user.id);
+
+                                        return (
+                                        <div key={file.id_files} className="flex items-center justify-between w-full max-w-md px-4 py-2.5 bg-white border border-gray-300 rounded-md shadow-sm transition-colors hover:bg-gray-50">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className={`flex items-center justify-center w-8 h-8 rounded text-[10px] font-bold flex-shrink-0 
+                                                    ${isPDF ? 'bg-red-100 text-red-600' : isImage ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    {ext.substring(0, 4)}
+                                                </div>
+                                                <a href={`http://localhost:5000/uploads/${file.file_path.split(/[\\/]/).pop()}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-gray-700 hover:underline hover:text-blue-600 truncate">
+                                                    {file.file_name}
+                                                </a>
+                                            </div>
+
+                                            {/* 🔴 โชว์ปุ่มลบเฉพาะไฟล์ของตัวเอง และโครงการยัง Active อยู่ */}
+                                            {isProjectActive && isMyFile && (
+                                                <button 
+                                                    onClick={() => handleDeleteFile(file.id_files)}
+                                                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-200 transition-colors ml-2 flex-shrink-0"
+                                                    title="ลบไฟล์"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}) : (
+                                        <span className="text-gray-400 text-sm italic">ยังไม่มีไฟล์ในโครงการ</span>
+                                    )}
+                                </div>
+
+                                {/* 🔴 ซ่อนกล่องอัปโหลดจนกว่าจะกด "รับงาน" */}
+                                {canUploadFiles && (
+                                    <div className="pt-2">
+                                        <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            Add file
+                                            <input type="file" className="hidden" onChange={async (e) => {
+                                                const file = e.target.files[0];
+                                                if (!file) return;
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+                                                formData.append('taskId', id);
+                                                // 🔴 แนบ userId ไปด้วย เพื่อให้ Backend รู้ว่าใครเป็นคนอัปโหลด
+                                                formData.append('userId', user.id); 
+
+                                                try {
+                                                    const response = await fetch(`http://localhost:5000/tasks/${id}/files`, { method: 'POST', body: formData });
+                                                    if (response.ok) { window.location.reload(); }
+                                                } catch (err) { console.error("Upload failed:", err); }
+                                            }} />
+                                        </label>
                                     </div>
-                                )) : <span className="text-gray-400 text-sm italic">ยังไม่มีไฟล์ในโครงการ</span>}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -281,7 +342,7 @@ function ProjectDetail() {
                         <ProjectActionBox
                             user={user}
                             project={project}
-                            tracking={tracking}  // <-- เพิ่มบรรทัดนี้ส่งเข้าไปด้วย
+                            tracking={tracking}
                             handleAction={handleAction}
                         />
                     </div>

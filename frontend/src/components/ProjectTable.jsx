@@ -12,7 +12,7 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
             <th className="py-4 px-5 font-bold w-[25%]">โครงการ</th>
             <th className="py-4 px-5 font-bold w-[20%]">ชื่อลูกค้า</th>
             <th className="py-4 px-5 font-bold w-[15%]">วันที่สร้าง</th>
-            <th className="py-4 px-5 font-bold w-[15%]">แผนกปัจจุบัน</th>
+            <th className="py-4 px-5 font-bold w-[15%]">ประเภทโครงการ</th>
             <th className="py-4 px-5 font-bold w-[16%]">สถานะ</th>
             <th className="py-4 px-5 font-bold rounded-r-lg text-center w-[13%]"></th>
           </tr>
@@ -43,20 +43,7 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
                 <td className="py-4 px-5 font-bold text-gray-800">{project.name}</td>
                 <td className="py-4 px-5 text-gray-700">{project.customer}</td>
                 <td className="py-4 px-5 text-gray-700">{project.createdDate}</td>
-
-                <td className="py-4 px-5 text-gray-700">
-                  <div className="flex flex-col">
-                    {project.status === 'COMPLETED' || project.status === 'CANCELLED' ? (
-                      // ถ้างานเสร็จหรือยกเลิก ให้คืนค่าเป็น null เพื่อไม่ให้แสดงอะไรเลยในช่องนี้
-                      null
-                    ) : (
-                      // ถ้างานยังทำอยู่ ให้แสดงแผนกปกติ
-                      <span className="font-medium text-sm">
-                        {project.assignedTo?.department || '-'}
-                      </span>
-                    )}
-                  </div>
-                </td>
+                <td className="py-4 px-5 text-gray-700">{project.type}</td>
 
                 <td className="py-4 px-5">
                   {project.status && (
