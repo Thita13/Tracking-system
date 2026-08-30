@@ -323,7 +323,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                     className={`w-full py-2 rounded-xl font-bold text-base transition-colors shadow-sm text-white ${
                                         isProjectCompleted || isAssignedToSomeoneElse || (!isMyAssignedTask && user.role !== 'Pricing') || isClaimed
                                             ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                            : 'bg-amber-500 hover:bg-amber-600'
+                                            : 'bg-[#4862FC] hover:bg-[#3B50E0]'
                                     }`}
                                 >
                                     {/* 🔴 4. เปลี่ยนข้อความปุ่มให้รู้ว่าเป็นงานของคนอื่น */}

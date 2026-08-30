@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 import { AuthContext } from '../context/AuthContext';
+import FileManager from '../components/FileManager'; // 🔴 นำเข้า Component กลาง
 
 function CreateProject() {
   const { user } = useContext(AuthContext);
@@ -36,16 +37,18 @@ function CreateProject() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // ตรวจสอบว่าถ้า name เป็น 'task_type' ต้องไปอัปเดต formData.projectType
     if (name === 'task_type') {
-       setFormData((prev) => ({ ...prev, projectType: value }));
+      setFormData((prev) => ({ ...prev, projectType: value }));
     } else {
-       setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleFileChange = (e) => {
-    setFormData((prev) => ({ ...prev, file: e.target.files[0] }));
+    const uploadedFile = e.target.files[0];
+    if (uploadedFile) {
+      setFormData((prev) => ({ ...prev, file: uploadedFile }));
+    }
   };
 
   const handleSubmit = async () => {
@@ -79,19 +82,19 @@ function CreateProject() {
       if (!response.ok) {
         throw new Error(result.message || 'ไม่สามารถสร้างงานใหม่ได้');
       }
+
       await fetch('http://localhost:5000/tracking', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'SEND_TO_INTERIOR',
-        id_task: result.taskId, // ใช้ ID จากงานที่เพิ่งสร้าง
-       id_users: formData.assignedInterior, // ID ของ Interior ที่เลือก
-        department: 'Interior'
-      })
-    });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'SEND_TO_INTERIOR',
+          id_task: result.taskId,
+          id_users: formData.assignedInterior,
+          department: 'Interior'
+        })
+      });
 
       toast.success('สร้างงานใหม่และมอบหมายสำเร็จ!');
-
       navigate(`/projects/${result.taskId}`);
 
     } catch (error) {
@@ -100,6 +103,9 @@ function CreateProject() {
       toast.error('ไม่สามารถบันทึกข้อมูลได้: ' + errorMsg);
     }
   };
+
+  // จัดรูปแบบไฟล์ให้ตรงกับ Component FileManager
+  const displayFiles = formData.file ? [{ file_name: formData.file.name, isPrevious: false, isLocal: true }] : [];
 
   return (
     <Layout role={user?.role || 'admin'} userName={user?.username || 'User'}>
@@ -160,11 +166,14 @@ function CreateProject() {
             <textarea name="details" value={formData.details} onChange={handleChange} rows="4" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"></textarea>
           </div>
 
-          {/* อัปโหลดไฟล์ */}
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">เพิ่มไฟล์</label>
-            <input type="file" onChange={handleFileChange} className="w-full border p-2 rounded-lg" />
-          </div>
+          {/* 🔴 เรียกใช้งาน Component FileManager แทนช่องอัปโหลดไฟล์แบบเดิม */}
+          <FileManager
+            files={displayFiles}
+            canUpload={true}
+            isProjectActive={true}
+            onUpload={handleFileChange}
+            onDelete={() => setFormData(prev => ({ ...prev, file: null }))}
+          />
 
           {/* มอบหมายงาน */}
           <div>
