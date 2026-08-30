@@ -194,9 +194,10 @@ app.post('/tasks', upload.single('file'), (req, res) => {
         db.query(trackingSql, ['CREATE_TASK', newTaskId, parseInt(id_users), 'Project Director'], (trackErr) => {
             if (trackErr) console.error("Tracking Error:", trackErr);
 
-            if (req.file) {
-                const insertFileSql = 'INSERT INTO files (file_name, file_path, version, id_task) VALUES (?, ?, 1, ?)';
-                db.query(insertFileSql, [req.file.originalname, req.file.path, newTaskId], (fileErr) => {
+           if (req.file) {
+                // 🔴 บันทึก id_users ลงในไฟล์เริ่มต้นตอนสร้างโปรเจกต์ด้วย
+                const insertFileSql = 'INSERT INTO files (file_name, file_path, version, id_task, id_users) VALUES (?, ?, 1, ?, ?)';
+                db.query(insertFileSql, [req.file.originalname, req.file.path, newTaskId, parseInt(id_users)], (fileErr) => {
                     if (fileErr) return res.status(500).json({ message: "บันทึกงานสำเร็จ แต่บันทึกไฟล์ไม่สำเร็จ" });
                     res.status(201).json({ message: 'สร้างงานและบันทึกไฟล์สำเร็จ', taskId: newTaskId });
                 });
@@ -206,7 +207,6 @@ app.post('/tasks', upload.single('file'), (req, res) => {
         });
     });
 });
-
 //my task
 app.get('/tasks/my-tasks/:userId', (req, res) => {
     const userId = req.params.userId;
@@ -375,16 +375,18 @@ app.get('/tasks/:id/comments', (req, res) => {
     });
 });
 
+// 🔴 1. แก้ไข API อัปโหลดไฟล์ ให้รับค่า userId และบันทึกลง Database
 app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
     const taskId = req.params.id;
-    
+    const userId = req.body.userId || null; // <--- เพิ่มบรรทัดนี้เพื่อรับค่าจากหน้าเว็บ
+
     if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
     }
 
     const fileName = req.file.originalname;
-    const fileNameStored = req.file.filename; 
-    const filePathToStore = 'uploads/' + fileNameStored; 
+    const fileNameStored = req.file.filename;
+    const filePathToStore = 'uploads/' + fileNameStored;
 
     const versionSql = `SELECT COALESCE(MAX(version), 0) + 1 AS nextVersion FROM files WHERE id_task = ?`;
 
@@ -392,10 +394,11 @@ app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         const nextVersion = versionResults[0].nextVersion;
-        // ลบ id_users ออกจากคำสั่ง SQL แล้ว
-        const insertSql = 'INSERT INTO files (file_name, file_path, id_task, version) VALUES (?, ?, ?, ?)';
 
-        db.query(insertSql, [fileName, filePathToStore, taskId, nextVersion], (err, results) => {
+        // <--- เพิ่ม id_users เข้าไปในคำสั่ง INSERT --->
+        const insertSql = 'INSERT INTO files (file_name, file_path, id_task, version, id_users) VALUES (?, ?, ?, ?, ?)';
+
+        db.query(insertSql, [fileName, filePathToStore, taskId, nextVersion, userId], (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
 
             res.status(201).json({
@@ -407,16 +410,18 @@ app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
     });
 });
 
+// 🔴 2. แก้ไข API ดึงไฟล์ ให้ดึง id_users ออกมาด้วย
 app.get('/tasks/:id/files', (req, res) => {
     const taskId = req.params.id;
-    // ลบ id_users ออกจากคำสั่ง SQL แล้ว
-    const sql = 'SELECT id_files, file_name, file_path, version, created_at FROM files WHERE id_task = ? ORDER BY version DESC';
+    // <--- เพิ่ม id_users ลงในคำสั่ง SELECT --->
+    const sql = 'SELECT id_files, file_name, file_path, version, created_at, id_users FROM files WHERE id_task = ? ORDER BY version ASC';
     db.query(sql, [taskId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results || []);
     });
 });
 
+// 3. API ลบไฟล์ (อันนี้โครงสร้างเดิมของคุณใช้ได้ดีอยู่แล้วครับ)
 app.delete('/tasks/:taskId/files/:fileId', (req, res) => {
     const { taskId, fileId } = req.params;
 
@@ -427,7 +432,7 @@ app.delete('/tasks/:taskId/files/:fileId', (req, res) => {
 
         const filePath = results[0].file_path;
         const deleteSql = 'DELETE FROM files WHERE id_files = ?';
-        
+
         db.query(deleteSql, [fileId], (err) => {
             if (err) return res.status(500).json({ error: err.message });
 
@@ -577,7 +582,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         `;
         params = [];
 
-    // 2. แผนก Interior
+        // 2. แผนก Interior
     } else if (normalizedRole === 'interior') {
         sql = `
             SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
@@ -602,7 +607,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         `;
         params = [userId];
 
-    // 3. แผนกอื่นๆ เช่น Pricing
+        // 3. แผนกอื่นๆ เช่น Pricing
     } else {
         sql = `
             SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
