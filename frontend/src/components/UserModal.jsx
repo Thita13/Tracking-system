@@ -31,7 +31,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
             autoPassword += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         setNewPassword(autoPassword);
-        return autoPassword; // คืนค่ารหัสที่สร้างขึ้น
+        return autoPassword;
     };
 
     // ฟังก์ชันกลางสำหรับส่งอีเมล
@@ -50,45 +50,53 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
         }
     };
 
-    const handleSave = async () => {
-        // Regex สำหรับเช็คว่าเป็นอีเมลที่มี @gmail.com
-        const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+   const handleSave = async () => {
+        // 🔴 บังคับว่าก่อน @gmail.com ต้องมีอย่างน้อย 6 ตัวอักษรขึ้นไป (ป้องกันอีเมลสั้นเกินไปหรืออีเมลหลอก)
+        const strictGmailRegex = /^[a-zA-Z0-9._%+-]{6,}@gmail\.com$/;
 
-        if (!gmailRegex.test(formData.email)) {
-            toast.error('กรุณากรอกอีเมลให้ถูกต้อง (ต้องเป็น @gmail.com เท่านั้น)');
-            return; // หยุดการทำงานถ้าอีเมลไม่ผ่านเงื่อนไข
+        if (!strictGmailRegex.test(formData.email)) {
+            toast.error('กรุณากรอกอีเมลให้ถูกต้อง (ชื่ออีเมลต้องมีอย่างน้อย 6 ตัวอักษร และเป็น @gmail.com)');
+            return; 
         }
 
-        // ถ้าผ่านเงื่อนไข ให้ทำตามขั้นตอนเดิม...
+        const isEditing = !!userToEdit;
+
+        // 2. ถ้าเป็นการเพิ่มผู้ใช้ใหม่ ให้ทดสอบส่งอีเมลก่อนบันทึกจริง
+        if (!isEditing) {
+            const toastId = toast.loading('กำลังตรวจสอบอีเมลและส่งรหัสผ่าน...');
+
+            const success = await sendPasswordEmail(formData.email, formData.name, newPassword);
+            
+            toast.dismiss(toastId);
+
+            if (!success) {
+                toast.error('อีเมลนี้ไม่มีอยู่จริง หรือไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบใหม่อีกครั้ง');
+                return; // หยุดการทำงาน ไม่สร้าง User
+            }
+        }
+
+        // 3. เตรียมข้อมูล payload สำหรับส่งไปบันทึก
         const payload = {
             username: formData.name,
             email: formData.email,
             phone: formData.phone,
             role: formData.role,
-            ...(isEditing ? {} : { password: newPassword }) // ถ้าเป็นการเพิ่มผู้ใช้ใหม่ ให้ส่งรหัสผ่านไปด้วย
+            ...(isEditing ? {} : { password: newPassword }) 
         };
 
         const finalPlayload = isEditing ? { ...payload, id_users: userToEdit.id_users } : payload;
 
-        if (!userToEdit) {
-            const success = await sendPasswordEmail(formData.email, formData.name, newPassword);
-            if (!success) {
-                toast.error('เกิดข้อผิดพลาดในการส่งอีเมล');
-                return;
-            }
-        }
+        // 4. บันทึกข้อมูลลงฐานข้อมูล
         onSave(finalPlayload, isEditing);
     };
 
     // ฟังก์ชันรีเซ็ตรหัสผ่านใหม่
     const handleResetPassword = async () => {
-        const newPassword = Math.random().toString(36).slice(-8); // สุ่มรหัสใหม่
-        console.log('รหัสผ่านใหม่ที่สร้าง:', newPassword); // ตรวจสอบรหัสที่สร้างขึ้นในคอนโซล
-        const success = await sendPasswordEmail(userToEdit.email, userToEdit.name, newPassword);
+        const resetPasswordStr = Math.random().toString(36).slice(-8);
+        const success = await sendPasswordEmail(userToEdit.email, userToEdit.name, resetPasswordStr);
 
         if (success) {
-            console.log('อีเมลรีเซ็ตรหัสผ่านถูกส่งเรียบร้อยแล้ว');
-            onReset(userToEdit, newPassword);
+            onReset(userToEdit, resetPasswordStr);
             toast.success('ระบบได้ส่งรหัสผ่านใหม่ไปยังอีเมลของผู้ใช้งานแล้ว');
         } else {
             toast.error('ส่งอีเมลล้มเหลว กรุณาลองใหม่');
@@ -110,7 +118,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                     </div>
 
                     <div className="p-6 space-y-5">
-                        {/* ฟอร์ม Input ต่างๆ เหมือนเดิม */}
                         <div><label className="block text-sm font-bold text-gray-700 mb-1.5">ชื่อ - นามสกุล</label><input type="text" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={inputClass} /></div>
                         <div><label className="block text-sm font-bold text-gray-700 mb-1.5">อีเมล</label>
                             <input
@@ -125,7 +132,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                                 className={inputClass}
                             /></div>
                         <div><label className="block text-sm font-bold text-gray-700 mb-1.5">เบอร์โทร</label>
-
                             <input type="tel" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className={inputClass} /></div>
 
                         <div>
@@ -152,7 +158,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                             </div>
                         </div>
 
-                        {/* ส่วนรหัสผ่าน */}
                         {isEditing ? (
                             <div className="pt-3 border-t border-gray-100">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">จัดการรหัสผ่าน</label>
@@ -176,12 +181,11 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                     </div>
                 </div>
             </div>
-           <ConfirmModal
+            <ConfirmModal
                 isOpen={isConfirmOpen}
                 onClose={() => setIsConfirmOpen(false)}
                 onConfirm={async () => {
                     try {
-                        // ตรวจสอบ Port ให้ตรงกับที่คุณใช้จริง (ถ้า Backend รันที่ 5000 ให้ใช้ 5000)
                         const response = await fetch(`http://localhost:5000/users/${userToEdit.id_users}`, {
                             method: 'DELETE'
                         });
@@ -190,7 +194,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                             throw new Error('ไม่สามารถลบผู้ใช้งานได้');
                         }
 
-                        // ย้ายคำสั่งสำเร็จมาไว้หลังตรวจสอบ response.ok
                         toast.success('ลบผู้ใช้งานเรียบร้อย!');
                         setIsConfirmOpen(false);
                         onClose();
@@ -207,7 +210,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
     );
 }
 
-// ย้าย TrashIcon ออกมาไว้นอกฟังก์ชัน UserModal
 const TrashIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

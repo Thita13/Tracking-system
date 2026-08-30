@@ -86,44 +86,68 @@ function ProjectDetail() {
         fetchAllData();
     }, [id]);
 
-
-    // 🔴 1. เงื่อนไขการตรวจสอบว่า "สามารถเพิ่มไฟล์ได้ไหม"
-    const isProjectActive = project && project.status !== 'WAITING_CONFIRM' && project.status !== 'COMPLETED';
+    // ===============================================================
+    // โลจิกการจัดการไฟล์ (ตอบโจทย์กฎเหล็ก: รับงานแก้แล้ว ลบไฟล์รอบเก่าได้)
+    // ===============================================================
+    const currentStatus = project?.status;
     const isAdminOrPD = user?.role === 'Admin' || user?.role === 'Project Director';
-    const isAssignedToMe = project && String(project.assign_to) === String(user.id);
+    const isAssignedToMe = project && String(project.assign_to) === String(user?.id);
 
-    // เช็คว่ากด "รับงาน" ไปหรือยังในขั้นตอนปัจจุบัน
+    // 1. เช็คว่าพนักงาน "กดรับงาน" แล้วหรือยังในรอบปัจจุบัน
     let hasStartedCurrentStage = false;
-    if (project?.status === 'INTERIOR') {
+    if (currentStatus === 'INTERIOR' || currentStatus === 'WAITING_CONFIRM') {
         hasStartedCurrentStage = tracking.some(t => t.status === 'START_INTERIOR');
-    } else if (project?.status === 'PRICING') {
+    } else if (currentStatus === 'PRICING') {
         hasStartedCurrentStage = tracking.some(t => t.status === 'START_PRICING');
-    } else if (project?.status === 'DESIGN_3D') {
+    } else if (currentStatus === 'DESIGN_3D') {
         hasStartedCurrentStage = tracking.some(t => t.status === 'START_3D');
     }
 
-    // จะโชว์ปุ่ม Add File ก็ต่อเมื่อ (เป็น Admin/PD) หรือ (เป็นเจ้าของงานและกดรับงานแล้ว)
-    const canUploadFiles = isProjectActive && (isAdminOrPD || (isAssignedToMe && hasStartedCurrentStage));
+    // 2. สิทธิ์การเปิดใช้งานปุ่ม Add file (ห้ามอัปโหลดเพิ่มตอนส่งงานรอตรวจ WAITING_CONFIRM)
+    const isPDCanUpload = isAdminOrPD && ['NEW', 'WAITING_CONFIRM'].includes(currentStatus);
+    const isStaffCanUpload = isAssignedToMe && ['INTERIOR', 'PRICING', 'DESIGN_3D'].includes(currentStatus) && hasStartedCurrentStage && currentStatus !== 'WAITING_CONFIRM';
+    const canUploadFiles = project && project.status !== 'COMPLETED' && (isPDCanUpload || isStaffCanUpload);
 
-    // 🔴 2. ฟังก์ชันลบไฟล์
-    const handleDeleteFile = async (fileId) => {
-        if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')) return;
+    // 3. สถานะ Active ของโครงการ (ใช้เปิด/ปิดปุ่มกากบาทลบไฟล์: ห้ามลบตอน WAITING_CONFIRM หรือ COMPLETED)
+    const isProjectActive = project && project.status !== 'WAITING_CONFIRM' && project.status !== 'COMPLETED';
 
-        try {
-            const response = await fetch(`http://localhost:5000/tasks/${id}/files/${fileId}`, {
-                method: 'DELETE'
-            });
+    // 4. จุดเปลี่ยนสำคัญ: หาเวลาเริ่มต้น "ตั้งแต่ก้าวแรกที่เข้าสู่สเตจนี้" (ไม่เปลี่ยนตามรอบการแก้)
+    // เพื่อให้เวลาที่ Interior กดรับงานแก้ ไฟล์ที่เคยส่งไว้ในสเตจนี้ตั้งแต่รอบแรก ถูกนับรวมว่าเป็นไฟล์ปัจจุบัน
+    let firstTimeInThisStage = 0;
+    let enterActionStatus = ['CREATE_TASK'];
+    
+    if (currentStatus === 'INTERIOR' || currentStatus === 'WAITING_CONFIRM') {
+        enterActionStatus = ['SEND_TO_INTERIOR'];
+    } else if (currentStatus === 'PRICING') {
+        enterActionStatus = ['SEND_TO_PRICING'];
+    } else if (currentStatus === 'DESIGN_3D') {
+        enterActionStatus = ['SEND_TO_3D'];
+    }
 
-            if (response.ok) {
-                setFiles(prevFiles => prevFiles.filter(f => f.id_files !== fileId));
+    const stagingActions = tracking.filter(t => enterActionStatus.includes(t.status));
+    if (stagingActions.length > 0) {
+        // เอาเวลาตอนเริ่มเข้าสเตจนี้ครั้งแรกสุด
+        firstTimeInThisStage = new Date(stagingActions[0].action_at).getTime();
+    }
+
+    // 5. แบ่งก้อนไฟล์ (ต้องกดรับงานแล้วเท่านั้น ถึงจะเอาไฟล์มาไว้ที่ "ไฟล์งานของฉัน" และลบได้)
+    const previousFiles = [];
+    const myFiles = [];
+
+    if (Array.isArray(files)) {
+        files.forEach(file => {
+            const fileTime = new Date(file.created_at).getTime();
+            const belongsToCurrentStage = fileTime >= firstTimeInThisStage;
+            const isMyUploadedFile = file.id_users && String(file.id_users) === String(user?.id);
+
+            // 🔴 เพิ่มเงื่อนไข hasStartedCurrentStage เข้าไปตรงนี้ เพื่อบังคับว่าต้องกดรับงานแล้วเท่านั้น
+            if (isMyUploadedFile && belongsToCurrentStage && (hasStartedCurrentStage || isAdminOrPD)) {
+                myFiles.push(file); // ลบได้เฉพาะตอนรับงานแล้ว (หรือเป็น Admin/PD)
             } else {
-                alert('เกิดข้อผิดพลาดในการลบไฟล์ หรือคุณไม่มีสิทธิ์ลบไฟล์นี้');
+                previousFiles.push(file); // ถ้ายังไม่กดรับงาน ไฟล์ทั้งหมดจะไปกองที่ไฟล์อ้างอิง (ลบไม่ได้)
             }
-        } catch (err) {
-            console.error("Delete file error:", err);
-            alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
-        }
-    };
+        });
+    }
 
     if (isLoading) return <Layout><div className="text-center py-20">กำลังโหลดข้อมูล...</div></Layout>;
     if (!project) return <Layout><div className="text-center py-20 text-red-500">ไม่พบข้อมูลโครงการ</div></Layout>;
@@ -156,15 +180,15 @@ function ProjectDetail() {
 
                                 const stepHistory = tracking.filter(t => {
                                     if (step.key === 'SEND_TO_INTERIOR') {
-                                        return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) || 
-                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
+                                        return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) ||
+                                            (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
                                     }
                                     if (step.key === 'SEND_TO_PRICING') {
-                                        return t.status === 'START_PRICING' || 
-                                               (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Pricing');
+                                        return t.status === 'START_PRICING' ||
+                                            (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Pricing');
                                     }
                                     if (step.key === 'SEND_TO_3D') {
-                                       return t.status === 'START_3D' || t.status === 'COMPLETE';
+                                        return t.status === 'START_3D' || t.status === 'COMPLETE';
                                     }
                                     return t.status === step.key || mapStatus(t.status) === step.key;
                                 });
@@ -184,7 +208,7 @@ function ProjectDetail() {
                                         (project.status === 'WAITING_CONFIRM' && tracking.some(t => t.department === 'Pricing' && t.status === 'SEND_TO_PROJECTDIRECTOR'));
                                 }
                                 else if (step.key === 'SEND_TO_3D') {
-                                   isCompleted = project.status === 'COMPLETED' || 
+                                    isCompleted = project.status === 'COMPLETED' ||
                                         (project.status === 'WAITING_CONFIRM' && has3DStarted);
                                 }
 
@@ -211,13 +235,11 @@ function ProjectDetail() {
                                     <div key={idx} className="z-10 flex flex-col items-center">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 border-2 
                                             ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
-                                              isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                                isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
                                             {isCompleted ? '✓' : idx + 1}
                                         </div>
-
                                         <span className="text-[12px] font-bold text-gray-700">{step.label}</span>
                                         <span className="text-[12px] text-gray-500 mb-2">{step.dept}</span>
-
                                         <div className="text-[11px] text-gray-400 text-center">
                                             {stepHistory.map((h, hIdx) => (
                                                 <div key={hIdx}>
@@ -252,53 +274,85 @@ function ProjectDetail() {
                             <div className="w-full p-4 bg-gray-50 rounded-xl text-sm text-gray-700 min-h-[120px] whitespace-pre-line border border-gray-100">{project.description || "ไม่มีรายละเอียด"}</div>
                         </div>
 
-                        {/* ไฟล์งาน */}
-                        <div className="mt-6">
-                            <h4 className="font-bold text-gray-800 mb-3">ไฟล์งาน</h4>
-                            
-                            <div className="space-y-3">
+                        {/* 🔴 ส่วนไฟล์งาน */}
+                        <div className="mt-8">
+                            <h4 className="font-bold text-gray-800 mb-4">ไฟล์งานในโครงการ</h4>
+
+                            {/* ก้อนที่ 1: ไฟล์อ้างอิงจากขั้นตอนก่อนหน้า */}
+                            {previousFiles.length > 0 && (
+                                <div className="mb-6">
+                                    <h5 className="font-semibold text-gray-500 text-[13px] mb-3 flex items-center">
+                                        <span className="mr-2">📁</span> ไฟล์อ้างอิงจากขั้นตอนก่อนหน้า
+                                    </h5>
+                                    <div className="flex flex-col gap-2">
+                                        {previousFiles.map(file => {
+                                            const ext = file.file_name.split('.').pop().toUpperCase();
+                                            const isPDF = ext === 'PDF';
+                                            const isImage = ['JPG', 'JPEG', 'PNG'].includes(ext);
+
+                                            return (
+                                                <div key={file.id_files} className="flex items-center justify-between w-full max-w-md px-4 py-2 bg-gray-50 border border-gray-200 rounded-md shadow-sm opacity-80">
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                        <div className={`flex items-center justify-center w-8 h-8 rounded text-[10px] font-bold flex-shrink-0 
+                                                            ${isPDF ? 'bg-red-100 text-red-600' : isImage ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                            {ext.substring(0, 4)}
+                                                        </div>
+                                                        <a href={`http://localhost:5000/uploads/${file.file_path.split(/[\\/]/).pop()}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-gray-600 hover:underline truncate">
+                                                            {file.file_name}
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {previousFiles.length > 0 && <hr className="border-gray-100 mb-6" />}
+
+                            {/* ก้อนที่ 2: ไฟล์งานของฉัน */}
+                            <div>
+                                <h5 className="font-semibold text-gray-700 text-[13px] mb-3 flex items-center">
+                                    <span className="mr-2">📂</span> ไฟล์งานของฉัน
+                                </h5>
                                 <div className="flex flex-col gap-2">
-                                    {Array.isArray(files) && files.length > 0 ? files.map(file => {
+                                    {myFiles.length > 0 ? myFiles.map(file => {
                                         const ext = file.file_name.split('.').pop().toUpperCase();
                                         const isPDF = ext === 'PDF';
                                         const isImage = ['JPG', 'JPEG', 'PNG'].includes(ext);
 
-                                        // 🔴 3. เช็คว่าเป็นไฟล์ที่ user ปัจจุบันอัปโหลดเองหรือไม่
-                                        const isMyFile = String(file.id_users) === String(user.id);
-
                                         return (
-                                        <div key={file.id_files} className="flex items-center justify-between w-full max-w-md px-4 py-2.5 bg-white border border-gray-300 rounded-md shadow-sm transition-colors hover:bg-gray-50">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className={`flex items-center justify-center w-8 h-8 rounded text-[10px] font-bold flex-shrink-0 
-                                                    ${isPDF ? 'bg-red-100 text-red-600' : isImage ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                    {ext.substring(0, 4)}
+                                            <div key={file.id_files} className="flex items-center justify-between w-full max-w-md px-4 py-2.5 bg-white border border-gray-300 rounded-md shadow-sm transition-colors hover:bg-blue-50">
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <div className={`flex items-center justify-center w-8 h-8 rounded text-[10px] font-bold flex-shrink-0 
+                                                        ${isPDF ? 'bg-red-100 text-red-600' : isImage ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        {ext.substring(0, 4)}
+                                                    </div>
+                                                    <a href={`http://localhost:5000/uploads/${file.file_path.split(/[\\/]/).pop()}`} target="_blank" rel="noreferrer" className="text-sm font-bold text-gray-800 hover:underline hover:text-blue-600 truncate">
+                                                        {file.file_name}
+                                                    </a>
                                                 </div>
-                                                <a href={`http://localhost:5000/uploads/${file.file_path.split(/[\\/]/).pop()}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-gray-700 hover:underline hover:text-blue-600 truncate">
-                                                    {file.file_name}
-                                                </a>
-                                            </div>
 
-                                            {/* 🔴 โชว์ปุ่มลบเฉพาะไฟล์ของตัวเอง และโครงการยัง Active อยู่ */}
-                                            {isProjectActive && isMyFile && (
-                                                <button 
-                                                    onClick={() => handleDeleteFile(file.id_files)}
-                                                    className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-200 transition-colors ml-2 flex-shrink-0"
-                                                    title="ลบไฟล์"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}) : (
-                                        <span className="text-gray-400 text-sm italic">ยังไม่มีไฟล์ในโครงการ</span>
+                                                {isProjectActive && (
+                                                    <button
+                                                        onClick={() => handleDeleteFile(file.id_files)}
+                                                        className="text-gray-400 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors ml-2 flex-shrink-0"
+                                                        title="ลบไฟล์"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    }) : (
+                                        <span className="text-gray-400 text-sm italic px-2">ยังไม่มีไฟล์ของคุณในโครงการนี้</span>
                                     )}
                                 </div>
 
-                                {/* 🔴 ซ่อนกล่องอัปโหลดจนกว่าจะกด "รับงาน" */}
                                 {canUploadFiles && (
-                                    <div className="pt-2">
+                                    <div className="pt-3">
                                         <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors shadow-sm">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -310,9 +364,7 @@ function ProjectDetail() {
                                                 const formData = new FormData();
                                                 formData.append('file', file);
                                                 formData.append('taskId', id);
-                                                // 🔴 แนบ userId ไปด้วย เพื่อให้ Backend รู้ว่าใครเป็นคนอัปโหลด
-                                                formData.append('userId', user.id); 
-
+                                                formData.append('userId', user.id);
                                                 try {
                                                     const response = await fetch(`http://localhost:5000/tasks/${id}/files`, { method: 'POST', body: formData });
                                                     if (response.ok) { window.location.reload(); }
