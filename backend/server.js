@@ -341,34 +341,62 @@ app.get('/tasks/:id/tracking', (req, res) => {
     });
 });
 
-
-//Comment on task
+// Comment on task (แก้ปัญหา Composite Foreign Key ครบถ้วน)
 app.post('/tasks/:id/comments', (req, res) => {
     const taskId = req.params.id;
-    const { comment,
-        created_at,
-        id_users,
-        id_task,
-        id_tracking } = req.body;
-    const sql = 'INSERT INTO comments (comment, created_at, id_users, id_task, id_tracking) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [comment,
-        created_at,
-        id_users,
-        id_task,
-        id_tracking], (err, results) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-            res.status(201).json({ message: 'Comment added', commentId: results.insertId });
-        });
+    const { comment, created_at, id_users } = req.body;
+    
+    // 1. ค้นหา id_tracking ของ "ผู้ใช้คนนี้" ในงานนี้ ที่มีอยู่แล้ว
+    const findTrackingSql = 'SELECT id_tracking FROM tracking WHERE id_task = ? AND id_users = ? ORDER BY action_at DESC LIMIT 1';
+    
+    db.query(findTrackingSql, [taskId, id_users], (trackErr, trackResults) => {
+        if (trackErr) {
+            console.error("Find tracking error:", trackErr);
+            return res.status(500).json({ error: trackErr.message });
+        }
+
+        let idTracking;
+
+        if (trackResults.length > 0) {
+            // ถ้า User คนนี้เคยมีประวัติ tracking ในงานนี้แล้ว นำมาใช้ได้เลย
+            idTracking = trackResults[0].id_tracking;
+            executeInsertComment(idTracking);
+        } else {
+            // ถ้า User คนนี้ (เช่น PD คนนี้) ยังไม่เคยมีประวัติ tracking ในงานนี้เลย 
+            // ให้สร้างประวัติชั่วคราวให้ User คนนี้ก่อน เพื่อไม่ให้ผิดกฎ Foreign Key
+            const createTrackingSql = 'INSERT INTO tracking (status, id_task, id_users, department, action_at) VALUES (?, ?, ?, ?, NOW())';
+            db.query(createTrackingSql, ['COMMENT_ACTION', taskId, id_users, 'Project Director'], (insErr, insRes) => {
+                if (insErr) {
+                    console.error("Create tracking error:", insErr);
+                    return res.status(500).json({ error: insErr.message });
+                }
+                executeInsertComment(insRes.insertId);
+            });
+        }
+
+        // ฟังก์ชันช่วยบันทึกคอมเมนต์
+        function executeInsertComment(trackingId) {
+            const insertSql = 'INSERT INTO comments (comment, created_at, id_users, id_task, id_tracking) VALUES (?, ?, ?, ?, ?)';
+            
+            db.query(insertSql, [comment, created_at, id_users, taskId, trackingId], (err, results) => {
+                if (err) {
+                    console.error("Insert comment error:", err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.status(201).json({ message: 'Comment added', commentId: results.insertId });
+            });
+        }
+    });
 });
 
 // Get comments by task ID
 app.get('/tasks/:id/comments', (req, res) => {
     const taskId = req.params.id;
-    const sql = 'SELECT comments.id_comment, comments.comment, comments.created_at, users.username AS commented_by FROM comments JOIN users ON comments.id_users = users.id_users WHERE comments.id_task = ? ORDER BY comments.created_at ASC';
+    const sql = 'SELECT comments.id_comment, comments.comment, comments.created_at, users.username AS commented_by, users.role AS commented_by_role FROM comments JOIN users ON comments.id_users = users.id_users WHERE comments.id_task = ? ORDER BY comments.created_at ASC';
+    
     db.query(sql, [taskId], (err, results) => {
         if (err) {
+            console.error("Get comments error:", err);
             return res.status(500).json({ error: err.message });
         }
         res.json(results);
@@ -568,61 +596,89 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
     let sql = '';
     let params = [];
 
-    // 1. ผู้บริหาร (Admin / Project Director)
+    // 1. ผู้บริหาร (Admin / Project Director) - เห็นทุกอย่าง ไม่ต้องกรองเวลา
     if (normalizedRole === 'admin' || normalizedRole === 'project director' || normalizedRole === 'project_director') {
         sql = `
-            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at, u.username AS action_by, u.role AS action_by_role, t.task_type AS detail
             FROM tasks t
             JOIN tracking tr ON t.id_task = tr.id_task
+            LEFT JOIN users u ON tr.id_users = u.id_users
             WHERE (
                 (t.status = 'WAITING_CONFIRM' AND tr.status IN ('SEND_TO_PROJECTDIRECTOR', 'SUBMIT_WORK', 'SUBMIT_3D_WORK', 'PENDING_REVIEW')) OR
                 (t.status = 'COMPLETED' AND tr.status = 'COMPLETE')
             )
-            ORDER BY tr.action_at DESC
+            UNION
+            SELECT t.id_task, t.task_name, t.task_type, t.status, 'NEW_COMMENT' AS tracking_status, c.created_at, u.username AS action_by, u.role AS action_by_role, c.comment AS detail
+            FROM comments c
+            JOIN tasks t ON c.id_task = t.id_task
+            JOIN users u ON c.id_users = u.id_users
+            WHERE c.id_comment IN (SELECT MAX(id_comment) FROM comments WHERE id_users != ? GROUP BY id_task)
+            ORDER BY created_at DESC
         `;
-        params = [];
+        params = [userId];
 
-        // 2. แผนก Interior
+    // 2. แผนก Interior
     } else if (normalizedRole === 'interior') {
         sql = `
-            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at, u.username AS action_by, u.role AS action_by_role, t.task_type AS detail
             FROM tasks t
             JOIN tracking tr ON t.id_task = tr.id_task
+            LEFT JOIN users u ON tr.id_users = u.id_users
             WHERE t.assign_to = ? 
             AND (
                 (
-                    -- 🔴 ประวัติออกแบบรอบแรก (จะคงอยู่ตลอดไป ยกเว้นจะถูกส่งไป 3D ถึงจะโดนซ่อน)
                     tr.status IN ('SEND_TO_INTERIOR', 'REQUEST_REVISION')
                     AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_INTERIOR'), '2000-01-01')
                     AND NOT EXISTS (SELECT 1 FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_3D')
                 ) 
                 OR 
                 (
-                    -- 🔴 ประวัติรอบ 3D (จะคงอยู่ตลอดไปเช่นกัน)
                     tr.status IN ('SEND_TO_3D', 'REQUEST_REVISION')
                     AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_3D'), '2000-01-01')
                 )
             )
-            ORDER BY tr.action_at DESC
+            UNION
+            SELECT t.id_task, t.task_name, t.task_type, t.status, 'NEW_COMMENT' AS tracking_status, c.created_at, u.username AS action_by, u.role AS action_by_role, c.comment AS detail
+            FROM comments c
+            JOIN tasks t ON c.id_task = t.id_task
+            JOIN users u ON c.id_users = u.id_users
+            WHERE c.id_comment IN (SELECT MAX(id_comment) FROM comments WHERE id_users != ? GROUP BY id_task)
+            AND t.assign_to = ?
+            /* 🔴 เพิ่มการกรอง: โชว์คอมเมนต์ที่พิมพ์ "หลัง" จากที่ถูกส่งมาให้ Interior เท่านั้น */
+            AND c.created_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status IN ('SEND_TO_INTERIOR', 'SEND_TO_3D')), '2000-01-01')
+            ORDER BY created_at DESC
         `;
-        params = [userId];
+        params = [userId, userId, userId];
 
-        // 3. แผนกอื่นๆ เช่น Pricing
+    // 3. แผนกอื่นๆ เช่น Pricing
     } else {
         sql = `
-            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at 
+            SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at, u.username AS action_by, u.role AS action_by_role, t.task_type AS detail
             FROM tasks t
             JOIN tracking tr ON t.id_task = tr.id_task
-            -- 🔴 ลบเงื่อนไขล็อกสถานะ PRICING ออกแล้ว ทำให้ประวัติยังอยู่แม้โครงการปิด (COMPLETED)
-            WHERE (t.assign_to = ? OR (t.status = 'PRICING' AND t.assign_to IS NULL))
+            LEFT JOIN users u ON tr.id_users = u.id_users
+            WHERE (
+                t.assign_to = ? 
+                OR (t.status = 'PRICING' AND t.assign_to IS NULL)
+                OR EXISTS (SELECT 1 FROM tracking tr_sub WHERE tr_sub.id_task = t.id_task AND tr_sub.id_users = ?)
+            )
             AND tr.status IN ('SEND_TO_PRICING', 'REQUEST_REVISION')
             AND LOWER(tr.department) = 'pricing'
             AND tr.action_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_PRICING'), '2000-01-01')
-            ORDER BY tr.action_at DESC
+            UNION
+            SELECT t.id_task, t.task_name, t.task_type, t.status, 'NEW_COMMENT' AS tracking_status, c.created_at, u.username AS action_by, u.role AS action_by_role, c.comment AS detail
+            FROM comments c
+            JOIN tasks t ON c.id_task = t.id_task
+            JOIN users u ON c.id_users = u.id_users
+            WHERE c.id_comment IN (SELECT MAX(id_comment) FROM comments WHERE id_users != ? GROUP BY id_task)
+            AND (t.assign_to = ? OR EXISTS (SELECT 1 FROM tracking tr_sub WHERE tr_sub.id_task = t.id_task AND tr_sub.id_users = ?))
+            /* 🔴 เพิ่มการกรอง: โชว์คอมเมนต์ที่พิมพ์ "หลัง" จากที่ถูกส่งมาให้ Pricing เท่านั้น */
+            AND c.created_at >= COALESCE((SELECT MAX(action_at) FROM tracking WHERE id_task = t.id_task AND status = 'SEND_TO_PRICING'), '2000-01-01')
+            ORDER BY created_at DESC
         `;
-        params = [userId];
+        params = [userId, userId, userId, userId, userId];
     }
-
+    
     db.query(sql, params, (err, results) => {
         if (err) {
             console.error("Error fetching notifications:", err);
@@ -631,7 +687,6 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         res.json(results || []);
     });
 });
-
 
 app.get('/users/by-role/:role', (req, res) => {
     const { role } = req.params;
