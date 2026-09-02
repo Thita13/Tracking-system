@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 import { AuthContext } from '../context/AuthContext';
-import FileManager from '../components/FileManager'; // 🔴 นำเข้า Component กลาง
 
 function CreateProject() {
   const { user } = useContext(AuthContext);
@@ -89,8 +88,10 @@ function CreateProject() {
         body: JSON.stringify({
           status: 'SEND_TO_INTERIOR',
           id_task: result.taskId,
-          id_users: formData.assignedInterior,
-          department: 'Interior'
+          // 🔴 แก้ไข: ใช้ ID ของคนที่ล็อกอิน (Project Director) เป็นคนสั่งงาน
+          id_users: user.id, 
+          // 🔴 แก้ไข: ใช้แผนกของคนที่ล็อกอิน
+          department: user.role || 'Project Director' 
         })
       });
 
@@ -103,9 +104,6 @@ function CreateProject() {
       toast.error('ไม่สามารถบันทึกข้อมูลได้: ' + errorMsg);
     }
   };
-
-  // จัดรูปแบบไฟล์ให้ตรงกับ Component FileManager
-  const displayFiles = formData.file ? [{ file_name: formData.file.name, isPrevious: false, isLocal: true }] : [];
 
   return (
     <Layout role={user?.role || 'admin'} userName={user?.username || 'User'}>
@@ -163,22 +161,41 @@ function CreateProject() {
           {/* รายละเอียด */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">รายละเอียดงาน</label>
-            <textarea name="details" value={formData.details} onChange={handleChange} rows="4" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none"></textarea>
+            <textarea name="details" value={formData.details} onChange={handleChange} rows="4" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
           </div>
 
-          {/* 🔴 เรียกใช้งาน Component FileManager แทนช่องอัปโหลดไฟล์แบบเดิม */}
-          <FileManager
-            files={displayFiles}
-            canUpload={true}
-            isProjectActive={true}
-            onUpload={handleFileChange}
-            onDelete={() => setFormData(prev => ({ ...prev, file: null }))}
-          />
+          {/* ส่วนแนบไฟล์ */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">แนบไฟล์โครงการ (ถ้ามี)</label>
+            <div className="flex items-center gap-4">
+              <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Add file
+                <input type="file" className="hidden" onChange={handleFileChange} />
+              </label>
+              {formData.file ? (
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border border-gray-200 rounded-md shadow-sm max-w-md flex-1">
+                  <span className="text-sm font-medium text-gray-700 truncate">{formData.file.name}</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData(prev => ({ ...prev, file: null }))}
+                    className="text-gray-400 hover:text-red-500 ml-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm text-gray-400 italic">ยังไม่ได้เลือกไฟล์</span>
+              )}
+            </div>
+          </div>
 
           {/* มอบหมายงาน */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">มอบหมายงานให้ Interior Design</label>
-            <select name="assignedInterior" value={formData.assignedInterior} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none bg-white">
+            <select name="assignedInterior" value={formData.assignedInterior} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500">
               <option value="">เลือกพนักงาน Interior</option>
               {interiorStaff.map((staff) => (
                 <option key={staff.id_users} value={staff.id_users}>{staff.username}</option>
@@ -187,8 +204,8 @@ function CreateProject() {
           </div>
 
           <div className="flex gap-4 mt-1 pt-6 ">
-            <button type="button" onClick={() => window.location.reload()} className="flex-1 bg-gray-300 py-3 rounded-lg font-bold">ยกเลิก</button>
-            <button type="button" onClick={handleSubmit} className="flex-1 bg-blue-500 text-white py-3 rounded-lg font-bold">บันทึก</button>
+            <button type="button" onClick={() => window.location.reload()} className="flex-1 bg-gray-300 py-3 rounded-lg font-bold hover:bg-gray-400 transition-colors">ยกเลิก</button>
+            <button type="button" onClick={handleSubmit} className="flex-1 bg-blue-500 text-white py-3 rounded-lg font-bold hover:bg-blue-600 transition-colors">บันทึก</button>
           </div>
         </div>
       </div>
