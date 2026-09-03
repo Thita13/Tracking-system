@@ -438,11 +438,17 @@ app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
     });
 });
 
-// 🔴 2. แก้ไข API ดึงไฟล์ ให้ดึง id_users ออกมาด้วย
+// 🔴 2. แก้ไข API ดึงไฟล์ ให้ดึง id_users และ role ของคนอัปโหลดออกมาด้วย
 app.get('/tasks/:id/files', (req, res) => {
     const taskId = req.params.id;
-    // <--- เพิ่ม id_users ลงในคำสั่ง SELECT --->
-    const sql = 'SELECT id_files, file_name, file_path, version, created_at, id_users FROM files WHERE id_task = ? ORDER BY version ASC';
+    // ใช้ LEFT JOIN เพื่อเอา role ของเจ้าของไฟล์มาเช็คสิทธิ์การลบ
+    const sql = `
+        SELECT f.id_files, f.file_name, f.file_path, f.version, f.created_at, f.id_users, u.role AS uploaded_by_role 
+        FROM files f 
+        LEFT JOIN users u ON f.id_users = u.id_users 
+        WHERE f.id_task = ? 
+        ORDER BY f.version ASC
+    `;
     db.query(sql, [taskId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results || []);
