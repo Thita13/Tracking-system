@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom'; // 🔴 1. Import useLocation
 
 export default function CommentSection({ taskId, user, project, tracking }) {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [showInfo, setShowInfo] = useState(false);
-    const commentsEndRef = useRef(null);
+    
+    const commentContainerRef = useRef(null);
+    const sectionRef = useRef(null); // 🔴 2. สร้าง ref สำหรับคลุมทั้งกล่องคอมเมนต์
+    const location = useLocation(); // 🔴 3. เรียกใช้ location เพื่อเช็ค URL
 
     // ===============================================================
     // โลจิกเช็คสิทธิ์การคอมเมนต์
@@ -12,11 +16,10 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     let canComment = false;
     const isAdminOrPD = user?.role === 'Admin' || user?.role === 'Project Director';
 
-    // 🔴 ถ้าโครงการเสร็จสิ้นแล้ว (COMPLETED) จะไม่มีใครคอมเมนต์ได้เลย
     if (project?.status === 'COMPLETED') {
         canComment = false;
     } else if (isAdminOrPD) {
-        canComment = true; 
+        canComment = true;
     } else if (project && String(project.assign_to) === String(user?.id)) {
         if (project.status === 'WAITING_CONFIRM') {
             canComment = false;
@@ -62,16 +65,26 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     }, [taskId]);
 
     useEffect(() => {
-        commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [comments]);
+        // ก. เลื่อนสกอร์บาร์ด้านในกล่องให้อยู่ล่างสุดเสมอเพื่อให้เห็นคอมเมนต์ล่าสุด
+        if (commentContainerRef.current) {
+            commentContainerRef.current.scrollTop = commentContainerRef.current.scrollHeight;
+        }
+
+        // 🔴 4. ข. เช็คว่าถ้าคลิกมาจากแจ้งเตือนคอมเมนต์ (มี #comments) ให้เลื่อนหน้าจอลงมา
+        if (location.hash === '#comments' && sectionRef.current) {
+            setTimeout(() => {
+                sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300); // หน่วงเวลาเล็กน้อยเพื่อให้หน้าเว็บวาด UI ส่วนอื่นเสร็จก่อน
+        }
+    }, [comments, location.hash]);
 
     const handleCommentSubmit = async () => {
         if (!newComment.trim() || !canComment) return;
 
         try {
             const now = new Date();
-            const tzOffset = now.getTimezoneOffset() * 60000; 
-            const localTime = new Date(now.getTime() - tzOffset); 
+            const tzOffset = now.getTimezoneOffset() * 60000;
+            const localTime = new Date(now.getTime() - tzOffset);
             const mysqlTimestamp = localTime.toISOString().slice(0, 19).replace('T', ' ');
 
             const response = await fetch(`http://localhost:5000/tasks/${taskId}/comments`, {
@@ -87,7 +100,7 @@ export default function CommentSection({ taskId, user, project, tracking }) {
 
             if (response.ok) {
                 setNewComment('');
-                fetchComments(); 
+                fetchComments();
             } else {
                 alert('เกิดข้อผิดพลาดในการส่งคอมเมนต์');
             }
@@ -98,7 +111,6 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     };
 
     const getReasonMessage = () => {
-        // 🔴 เพิ่มข้อความชี้แจงกรณีจบโครงการแล้ว
         if (project?.status === 'COMPLETED') {
             return 'โครงการนี้จบการทำงานแล้ว ไม่สามารถแสดงความคิดเห็นเพิ่มเติมได้';
         }
@@ -109,22 +121,23 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     };
 
     return (
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative">
+        // 🔴 5. ใส่ ref={sectionRef} และ id="comments" ไว้ที่กล่องนอกสุด
+        <div id="comments" ref={sectionRef} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative mt-6">
             <h3 className="font-bold text-gray-800 mb-4">คอมเมนต์เพิ่มเติม</h3>
-            
-            <div className="max-h-[300px] overflow-y-auto mb-4 space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
+
+            <div ref={commentContainerRef} className="max-h-[300px] overflow-y-auto mb-4 space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-200">
                 {comments.length > 0 ? (
                     comments.map(c => (
                         <div key={c.id_comment} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                             <div className="flex justify-between items-center mb-1.5">
                                 <span className="text-xs font-bold text-blue-600">
-                                    {c.commented_by} 
+                                    {c.commented_by}
                                     {c.commented_by_role && <span className="text-gray-400 font-normal lowercase ml-1">({c.commented_by_role})</span>}
                                 </span>
                                 <span className="text-[10px] text-gray-400">
-                                    {new Date(c.created_at).toLocaleString('th-TH', { 
-                                        year: 'numeric', month: 'short', day: 'numeric', 
-                                        hour: '2-digit', minute: '2-digit' 
+                                    {new Date(c.created_at).toLocaleString('th-TH', {
+                                        year: 'numeric', month: 'short', day: 'numeric',
+                                        hour: '2-digit', minute: '2-digit'
                                     })} น.
                                 </span>
                             </div>
@@ -136,26 +149,24 @@ export default function CommentSection({ taskId, user, project, tracking }) {
                         ยังไม่มีคอมเมนต์...
                     </div>
                 )}
-                <div ref={commentsEndRef} />
             </div>
 
             {canComment ? (
                 <div className="flex gap-2 mt-2">
-                    <input 
-                        className="flex-1 border rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                        placeholder="พิมพ์ข้อความที่นี่..." 
+                    <input
+                        className="flex-1 border rounded-full px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        placeholder="พิมพ์ข้อความที่นี่..."
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') handleCommentSubmit();
                         }}
                     />
-                    <button 
+                    <button
                         onClick={handleCommentSubmit}
                         disabled={!newComment.trim()}
-                        className={`px-6 rounded-full text-sm font-bold text-white transition-colors flex-shrink-0 ${
-                            newComment.trim() ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-300 cursor-not-allowed'
-                        }`}
+                        className={`px-6 rounded-full text-sm font-bold text-white transition-colors flex-shrink-0 ${newComment.trim() ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-300 cursor-not-allowed'
+                            }`}
                     >
                         ส่ง
                     </button>
@@ -165,7 +176,7 @@ export default function CommentSection({ taskId, user, project, tracking }) {
                     <span className="text-sm font-semibold text-gray-400 tracking-wide select-none">
                         View only
                     </span>
-                    
+
                     <div className="relative">
                         <button
                             type="button"

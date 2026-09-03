@@ -18,6 +18,18 @@ function ProjectDetail() {
     const [files, setFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // State จัดการโหมดแก้ไขข้อมูล
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState({
+        task_name: '',
+        task_type: '',
+        customer_name: '',
+        customer_phone: '',
+        description: '',
+        status: '',
+        id_users: ''
+    });
+
     const handleAction = async (actionType, extraData = null) => {
         try {
             const dept = extraData?.department || '';
@@ -47,30 +59,32 @@ function ProjectDetail() {
         }
     };
 
+    const fetchAllData = async () => {
+        setIsLoading(true);
+        try {
+            const resP = await fetch(`http://localhost:5000/tasks/${id}`);
+            const data = await resP.json();
+            setProject(data);
+
+            const resT = await fetch(`http://localhost:5000/tasks/${id}/tracking`);
+            const trackData = await resT.json();
+            setTracking(Array.isArray(trackData) ? trackData : []);
+
+            const resF = await fetch(`http://localhost:5000/tasks/${id}/files`);
+            const fileData = await resF.json();
+            setFiles(Array.isArray(fileData) ? fileData : []);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchAllData = async () => {
-            setIsLoading(true);
-            try {
-                const resP = await fetch(`http://localhost:5000/tasks/${id}`);
-                const data = await resP.json();
-                setProject(data);
-
-                const resT = await fetch(`http://localhost:5000/tasks/${id}/tracking`);
-                const trackData = await resT.json();
-                setTracking(Array.isArray(trackData) ? trackData : []);
-
-                const resF = await fetch(`http://localhost:5000/tasks/${id}/files`);
-                const fileData = await resF.json();
-                setFiles(Array.isArray(fileData) ? fileData : []);
-            } catch (err) {
-                console.error("Error fetching data:", err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         fetchAllData();
     }, [id]);
 
+    // ฟังก์ชันจัดการลบไฟล์
     const handleDeleteFile = async (fileId) => {
         if (!window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')) return;
         try {
@@ -82,6 +96,69 @@ function ProjectDetail() {
             }
         } catch (err) {
             console.error("Delete file error:", err);
+            alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+        }
+    };
+
+    // ฟังก์ชันจัดการอัปโหลดไฟล์
+    const handleUploadFile = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+        uploadData.append('taskId', id);
+        uploadData.append('userId', user.id);
+        try {
+            const response = await fetch(`http://localhost:5000/tasks/${id}/files`, { method: 'POST', body: uploadData });
+            if (response.ok) { 
+                const resF = await fetch(`http://localhost:5000/tasks/${id}/files`);
+                const fileData = await resF.json();
+                setFiles(Array.isArray(fileData) ? fileData : []);
+            } else {
+                alert('อัปโหลดไฟล์ไม่สำเร็จ');
+            }
+        } catch (err) { 
+            console.error("Upload failed:", err); 
+            alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+        }
+    };
+
+    const handleEditClick = () => {
+        setEditData({
+            task_name: project.task_name || '',
+            task_type: project.task_type || '',
+            customer_name: project.customer_name || '',
+            customer_phone: project.customer_phone || '',
+            description: project.description || '',
+            status: project.status || '', 
+            id_users: project.id_users || '' 
+        });
+        setIsEditing(true);
+    };
+
+    const handleCancelEdit = () => setIsEditing(false);
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setEditData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveEdit = async () => {
+        try {
+            const response = await fetch(`http://localhost:5000/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editData)
+            });
+
+            if (response.ok) {
+                setProject(prev => ({ ...prev, ...editData })); 
+                setIsEditing(false); 
+            } else {
+                alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            }
+        } catch (err) {
+            console.error("Save edit error:", err);
             alert("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
         }
     };
@@ -106,27 +183,85 @@ function ProjectDetail() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
                     
-                    {/* Timeline Component */}
                     <Timeline project={project} tracking={tracking} />
 
-                    {/* ข้อมูลโครงการ */}
                     <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                         <div className="flex justify-between items-center mb-6 ">
                             <h3 className="font-bold text-gray-800">ข้อมูล</h3>
-                            {(user?.role === 'Admin' || user?.role === 'Project Director') && (
-                                <button className="text-red-500 font-bold text-sm hover:underline">แก้ไข</button>
+                            
+                            {/* 🔴 เพิ่มเงื่อนไข && project.status !== 'COMPLETED' เพื่อซ่อนปุ่มแก้ไขเมื่อโครงการเสร็จสิ้นแล้ว */}
+                            {(user?.role === 'Admin' || user?.role === 'Project Director') && project.status !== 'COMPLETED' && (
+                                isEditing ? (
+                                    <div className="flex space-x-4">
+                                        <button onClick={handleCancelEdit} className="text-gray-500 font-bold text-sm hover:underline">ยกเลิก</button>
+                                        <button onClick={handleSaveEdit} className="text-blue-600 font-bold text-sm hover:underline">บันทึก</button>
+                                    </div>
+                                ) : (
+                                    <button onClick={handleEditClick} className="text-red-500 font-bold text-sm hover:underline">แก้ไข</button>
+                                )
                             )}
                         </div>
+
                         <div className="flex flex-col gap-y-3 text-sm mb-6">
-                            <div className="flex"><span className="text-gray-500 w-[120px]">รหัสโครงการ :</span> <span className="font-semibold">{project.id_task}</span></div>
-                            <div className="flex"><span className="text-gray-500 w-[120px]">ชื่อโครงการ :</span> <span className="font-semibold">{project.task_name}</span></div>
-                            <div className="flex"><span className="text-gray-500 w-[120px]">ประเภท :</span> <span className="font-semibold">{project.task_type}</span></div>
-                            <div className="flex"><span className="text-gray-500 w-[120px]">ชื่อลูกค้า :</span> <span className="font-semibold">{project.customer_name}</span></div>
-                            <div className="flex"><span className="text-gray-500 w-[120px]">เบอร์โทรลูกค้า :</span> <span className="font-semibold">{project.customer_phone}</span></div>
+                            <div className="flex items-center min-h-[32px]">
+                                <span className="text-gray-500 w-[120px] flex-shrink-0">รหัสโครงการ :</span> 
+                                <span className="font-semibold">{project.id_task}</span>
+                            </div>
+                            
+                            <div className="flex items-center min-h-[32px]">
+                                <span className="text-gray-500 w-[120px] flex-shrink-0">ชื่อโครงการ :</span> 
+                                {isEditing ? (
+                                    <input type="text" name="task_name" value={editData.task_name} onChange={handleInputChange} className="border border-gray-300 rounded-lg px-3 py-1 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                ) : (
+                                    <span className="font-semibold">{project.task_name}</span>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center min-h-[32px]">
+                                <span className="text-gray-500 w-[120px] flex-shrink-0">ประเภท :</span> 
+                                {isEditing ? (
+                                    <select name="task_type" value={editData.task_type} onChange={handleInputChange} className="border border-gray-300 rounded-lg px-3 py-1 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="home">home</option>
+                                        <option value="condo">condo</option>
+                                    </select>
+                                ) : (
+                                    <span className="font-semibold">{project.task_type}</span>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center min-h-[32px]">
+                                <span className="text-gray-500 w-[120px] flex-shrink-0">ชื่อลูกค้า :</span> 
+                                {isEditing ? (
+                                    <input type="text" name="customer_name" value={editData.customer_name} onChange={handleInputChange} className="border border-gray-300 rounded-lg px-3 py-1 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                ) : (
+                                    <span className="font-semibold">{project.customer_name}</span>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center min-h-[32px]">
+                                <span className="text-gray-500 w-[120px] flex-shrink-0">เบอร์โทรลูกค้า :</span> 
+                                {isEditing ? (
+                                    <input type="text" name="customer_phone" value={editData.customer_phone} onChange={handleInputChange} className="border border-gray-300 rounded-lg px-3 py-1 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                ) : (
+                                    <span className="font-semibold">{project.customer_phone}</span>
+                                )}
+                            </div>
                         </div>
+
                         <div className="mt-4">
                             <h4 className="font-bold text-gray-800 mb-2">รายละเอียดงาน</h4>
-                            <div className="w-full p-4 bg-gray-50 rounded-xl text-sm text-gray-700 min-h-[120px] whitespace-pre-line border border-gray-100">{project.description || "ไม่มีรายละเอียด"}</div>
+                            {isEditing ? (
+                                <textarea 
+                                    name="description" 
+                                    value={editData.description} 
+                                    onChange={handleInputChange} 
+                                    className="w-full p-4 border border-gray-300 rounded-xl text-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            ) : (
+                                <div className="w-full p-4 bg-gray-50 rounded-xl text-sm text-gray-700 min-h-[120px] whitespace-pre-line border border-gray-100">
+                                    {project.description || "ไม่มีรายละเอียด"}
+                                </div>
+                            )}
                         </div>
 
                         {/* ไฟล์แมนเนเจอร์ */}
@@ -135,23 +270,12 @@ function ProjectDetail() {
                             tracking={tracking}
                             files={files}
                             user={user}
-                            onUpload={async (e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
-                                const uploadData = new FormData();
-                                uploadData.append('file', file);
-                                uploadData.append('taskId', id);
-                                uploadData.append('userId', user.id);
-                                try {
-                                    const response = await fetch(`http://localhost:5000/tasks/${id}/files`, { method: 'POST', body: uploadData });
-                                    if (response.ok) { window.location.reload(); }
-                                } catch (err) { console.error("Upload failed:", err); }
-                            }}
+                            onUpload={handleUploadFile}
                             onDelete={handleDeleteFile}
+                            isEditing={isEditing}
                         />
                     </div>
 
-                    {/* 🔴 คอมเมนต์ (ส่ง props project และ tracking ไปให้ Component จัดการสิทธิ์คำนวณเอง) */}
                     <CommentSection taskId={id} user={user} project={project} tracking={tracking} />
                     
                 </div>

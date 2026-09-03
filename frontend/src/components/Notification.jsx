@@ -184,7 +184,7 @@ export default function Notification({ userId, role }) {
                         localStorage.setItem(storageKey, JSON.stringify(updatedReadTasks));
                       }
                       setIsNotificationOpen(false);
-                      navigate(`/projects/${task.id_task}`);
+                      navigate(`/projects/${task.id_task}${isComment ? '#comments' : ''}`);
                     }}
                     className={`p-4 cursor-pointer transition-all flex items-start space-x-3 text-left ${
                         isRead ? 'bg-white opacity-60 hover:bg-gray-50' : (isComment ? 'bg-purple-50/40 hover:bg-purple-50/70' : 'bg-blue-50/40 hover:bg-blue-50/80')

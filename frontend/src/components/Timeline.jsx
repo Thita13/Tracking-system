@@ -21,11 +21,27 @@ export default function Timeline({ project, tracking }) {
         return mapping[status] || status;
     };
 
+    // 🔴 1. รับค่าตัวแปร isRevisionStart เข้ามาเช็คเพื่อเปลี่ยนข้อความ
+    const getHoverText = (status, isRevisionStart) => {
+        if (['CREATE_TASK', 'NEW'].includes(status)) return 'สร้างโครงการใหม่';
+        if (['SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'].includes(status)) return 'ได้รับมอบหมายงาน';
+        if (['START_INTERIOR', 'START_PRICING', 'START_3D'].includes(status)) {
+            // ถ้าเป็นงานแก้ ให้แสดงคำว่า "กดรับงานแก้ไข"
+            return isRevisionStart ? 'กดรับงานแก้ไข' : 'กดรับงาน';
+        }
+        if (['SUBMIT_WORK', 'SEND_TO_PROJECTDIRECTOR'].includes(status)) return 'ส่งงานเพื่อรอตรวจสอบ';
+        if (status === 'REQUEST_REVISION') return 'ถูกส่งกลับมาแก้ไข';
+        if (status === 'COMPLETE' || status === 'COMPLETED') return 'จบโครงการ';
+        return status; 
+    };
+
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
             <h3 className="font-bold text-gray-800 mb-8">Timeline</h3>
-            <div className="flex items-center justify-between relative px-4">
-                <div className="absolute top-5 left-15 right-8 h-1 bg-gray-100 -z-0"></div>
+            
+            <div className="flex items-start justify-between relative w-full">
+                
+                <div className="absolute top-5 left-[12.5%] right-[12.5%] h-1 bg-gray-200 z-0"></div>
 
                 {steps.map((step, idx) => {
                     const stepHistory = tracking.filter(t => {
@@ -82,21 +98,39 @@ export default function Timeline({ project, tracking }) {
                     }
 
                     return (
-                        <div key={idx} className="z-10 flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 border-2 
+                        <div key={idx} className="z-10 flex flex-col items-center flex-1">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold mb-2 border-2 transition-colors
                                 ${isCompleted ? 'bg-green-500 border-green-500 text-white' :
-                                  isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                  isCurrent ? 'bg-blue-500 border-blue-500 text-white' : 'bg-gray-200 border-gray-200 text-gray-400'}`}>
                                 {isCompleted ? '✓' : idx + 1}
                             </div>
-                            <span className="text-[12px] font-bold text-gray-700">{step.label}</span>
-                            <span className="text-[12px] text-gray-500 mb-2">{step.dept}</span>
-                            <div className="text-[11px] text-gray-400 text-center">
-                                {stepHistory.map((h, hIdx) => (
-                                    <div key={hIdx}>
-                                        {new Date(h.action_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                        {' '}{new Date(h.action_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                                    </div>
-                                ))}
+                            <span className="text-[12px] font-bold text-gray-700 text-center">{step.label}</span>
+                            <span className="text-[12px] text-gray-500 mb-2 text-center">{step.dept}</span>
+                            
+                            <div className="text-[11px] text-gray-400 text-center space-y-2 mt-1">
+                                {stepHistory.map((h, hIdx) => {
+                                    
+                                    // 🔴 2. เช็คว่าสถานะรับงานนี้ เคยเกิดขึ้นมาก่อนหน้าในไทม์ไลน์หมวดนี้หรือไม่
+                                    // ถ้าระบุว่าเจอก่อนหน้า (findIndex < hIdx) แปลว่าอันนี้คือรับงานรอบแก้
+                                    const isRevisionStart = ['START_INTERIOR', 'START_PRICING', 'START_3D'].includes(h.status) && 
+                                                            stepHistory.findIndex(item => item.status === h.status) < hIdx;
+
+                                    return (
+                                        <div key={hIdx} className="leading-tight whitespace-nowrap relative group cursor-help inline-block">
+                                            <span className="hover:text-gray-600 transition-colors">
+                                                {new Date(h.action_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                                {' '}
+                                                {new Date(h.action_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                                            </span>
+                                            
+                                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-800 text-white text-[10px] font-medium px-2.5 py-1.5 rounded shadow-lg z-50">
+                                                {/* 🔴 3. ส่งตัวแปรเข้าไปในฟังก์ชัน */}
+                                                {getHoverText(h.status, isRevisionStart)}
+                                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-[4px] border-transparent border-t-gray-800"></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
