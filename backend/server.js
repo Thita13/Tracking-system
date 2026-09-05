@@ -97,8 +97,6 @@ app.put('/users/:id', (req, res) => {
     const id = req.params.id;
     const { username, phone, email, role, password } = req.body;
 
-    const passwordToHash = password || newPassword; // ใช้รหัสผ่านใหม่ถ้ามี หรือใช้รหัสผ่านเดิมถ้าไม่มีการส่งม
-
     let sql;
     let params;
 
@@ -136,6 +134,58 @@ app.delete('/users/:id', (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
         res.json({ message: 'User deleted' });
+    });
+});
+
+// 1. API สำหรับผู้ใช้งานเปลี่ยนรหัสผ่านด้วยตัวเอง (นำรหัสผ่านสุ่มมาเปลี่ยน)
+app.put('/users/:id/change-password', (req, res) => {
+    const userId = req.params.id;
+    const { oldPassword, newPassword } = req.body;
+
+    // ขั้นตอนที่ 1: ดึงรหัสผ่านเดิม (ที่ถูก Hash ไว้) จากฐานข้อมูลมาตรวจสอบ
+    const sqlSelect = 'SELECT password FROM users WHERE id_users = ?';
+    db.query(sqlSelect, [userId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ message: 'User not found' });
+
+        const user = results[0];
+
+        // ขั้นตอนที่ 2: เทียบรหัสผ่านที่พิมพ์เข้ามา (oldPassword) กับรหัสในฐานข้อมูล
+        // รหัสที่สุ่มมาจะถูกตรวจสอบด้วย bcrypt.compareSync ว่าตรงกับ Hash ในระบบหรือไม่
+        const isMatch = bcrypt.compareSync(oldPassword, user.password);
+        
+        if (!isMatch) {
+            return res.status(401).json({ message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+        }
+
+        // ขั้นตอนที่ 3: ถ้ารหัสผ่านเดิมถูกต้อง ให้นำรหัสผ่านใหม่ไป Hash
+        const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+
+        // ขั้นตอนที่ 4: บันทึกรหัสผ่านใหม่ลงฐานข้อมูล
+        const sqlUpdate = 'UPDATE users SET password = ? WHERE id_users = ?';
+        db.query(sqlUpdate, [hashedNewPassword, userId], (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: updateErr.message });
+            
+            res.json({ message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+        });
+    });
+});
+
+// 2. API สำหรับ Admin รีเซ็ตรหัสผ่านให้ User (สุ่มรหัสผ่านใหม่)
+// (เพิ่ม API นี้ด้วย เพราะในไฟล์ Users.jsx ของคุณมีการเรียกใช้ /reset-password)
+app.put('/users/:id/reset-password', (req, res) => {
+    const userId = req.params.id;
+    const { newPassword } = req.body;
+
+    // เข้ารหัส(Hash) รหัสผ่านใหม่ที่สุ่มมาทันที
+    const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+    const sqlUpdate = 'UPDATE users SET password = ? WHERE id_users = ?';
+
+    db.query(sqlUpdate, [hashedNewPassword, userId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
+        
+        res.json({ message: 'รีเซ็ตรหัสผ่านสำเร็จ' });
     });
 });
 
