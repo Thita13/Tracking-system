@@ -21,18 +21,20 @@ export default function Timeline({ project, tracking }) {
         return mapping[status] || status;
     };
 
-    // 🔴 1. รับค่าตัวแปร isRevisionStart เข้ามาเช็คเพื่อเปลี่ยนข้อความ
-    const getHoverText = (status, isRevisionStart) => {
-        if (['CREATE_TASK', 'NEW'].includes(status)) return 'สร้างโครงการใหม่';
-        if (['SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'].includes(status)) return 'ได้รับมอบหมายงาน';
-        if (['START_INTERIOR', 'START_PRICING', 'START_3D'].includes(status)) {
-            // ถ้าเป็นงานแก้ ให้แสดงคำว่า "กดรับงานแก้ไข"
-            return isRevisionStart ? 'กดรับงานแก้ไข' : 'กดรับงาน';
+    // 🔴 1. รับค่า actionBy เพิ่มเข้ามาเพื่อนำชื่อผู้ใช้มาต่อข้อความ
+    const getHoverText = (status, isRevisionStart, actionBy) => {
+        let text = status;
+        if (['CREATE_TASK', 'NEW'].includes(status)) text = 'สร้างโครงการใหม่';
+        else if (['SEND_TO_INTERIOR', 'SEND_TO_PRICING', 'SEND_TO_3D'].includes(status)) text = 'ได้รับมอบหมายงาน';
+        else if (['START_INTERIOR', 'START_PRICING', 'START_3D'].includes(status)) {
+            text = isRevisionStart ? 'กดรับงานแก้ไข' : 'กดรับงาน';
         }
-        if (['SUBMIT_WORK', 'SEND_TO_PROJECTDIRECTOR'].includes(status)) return 'ส่งงานเพื่อรอตรวจสอบ';
-        if (status === 'REQUEST_REVISION') return 'ถูกส่งกลับมาแก้ไข';
-        if (status === 'COMPLETE' || status === 'COMPLETED') return 'จบโครงการ';
-        return status; 
+        else if (['SUBMIT_WORK', 'SEND_TO_PROJECTDIRECTOR'].includes(status)) text = 'ส่งงานเพื่อรอตรวจสอบ';
+        else if (status === 'REQUEST_REVISION') text = 'ถูกส่งกลับมาแก้ไข';
+        else if (status === 'COMPLETE' || status === 'COMPLETED') text = 'จบโครงการ';
+
+        // ถ้ามีชื่อผู้ทำรายการ ให้แสดงชื่อนำหน้าข้อความ (เช่น "Jaemin กดรับงาน")
+        return actionBy ? `${actionBy} ${text}` : text;
     };
 
     return (
@@ -47,7 +49,7 @@ export default function Timeline({ project, tracking }) {
                     const stepHistory = tracking.filter(t => {
                         if (step.key === 'SEND_TO_INTERIOR') {
                             return (['START_INTERIOR', 'SUBMIT_WORK'].includes(t.status) || 
-                                   (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
+                                    (t.status === 'SEND_TO_PROJECTDIRECTOR' && t.department === 'Interior'));
                         }
                         if (step.key === 'SEND_TO_PRICING') {
                             return t.status === 'START_PRICING' || 
@@ -109,9 +111,6 @@ export default function Timeline({ project, tracking }) {
                             
                             <div className="text-[11px] text-gray-400 text-center space-y-2 mt-1">
                                 {stepHistory.map((h, hIdx) => {
-                                    
-                                    // 🔴 2. เช็คว่าสถานะรับงานนี้ เคยเกิดขึ้นมาก่อนหน้าในไทม์ไลน์หมวดนี้หรือไม่
-                                    // ถ้าระบุว่าเจอก่อนหน้า (findIndex < hIdx) แปลว่าอันนี้คือรับงานรอบแก้
                                     const isRevisionStart = ['START_INTERIOR', 'START_PRICING', 'START_3D'].includes(h.status) && 
                                                             stepHistory.findIndex(item => item.status === h.status) < hIdx;
 
@@ -124,8 +123,8 @@ export default function Timeline({ project, tracking }) {
                                             </span>
                                             
                                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-gray-800 text-white text-[10px] font-medium px-2.5 py-1.5 rounded shadow-lg z-50">
-                                                {/* 🔴 3. ส่งตัวแปรเข้าไปในฟังก์ชัน */}
-                                                {getHoverText(h.status, isRevisionStart)}
+                                                {/* 🔴 2. ส่ง h.action_by เข้าไปเพื่อแสดงชื่อผู้ทำรายการ */}
+                                                {getHoverText(h.status, isRevisionStart, h.action_by)}
                                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-[4px] border-transparent border-t-gray-800"></div>
                                             </div>
                                         </div>

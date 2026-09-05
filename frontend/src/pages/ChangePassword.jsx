@@ -14,7 +14,6 @@ function ChangePassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // 🔴 State สำหรับควบคุมการเปิด-ปิดตาของแต่ละช่อง
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -65,7 +64,7 @@ function ChangePassword() {
   };
 
   return (
-    <Layout hideSidebar={true}>
+    <Layout>
       <div className="max-w-4xl mx-auto mt-6 mb-10 px-4 w-full">
         
         <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-gray-200 overflow-hidden">
