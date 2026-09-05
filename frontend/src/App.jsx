@@ -2,23 +2,25 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import { ProjectProvider } from './context/ProjectContext';
-import { AuthProvider } from './context/AuthContext'; // 1. นำเข้า AuthProvider
+import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Users from './pages/Users';
 import CreateProject from './pages/CreateProject';
 import Projects from './pages/Projects';
 import MyProjects from './pages/MyProjects';
 import ProjectDetail from './pages/ProjectDetail';
+import Profile from './pages/Profile';
 
 
 function App() {
   return (
-    <AuthProvider> {/* 2. หุ้มด้วย AuthProvider */}
+    <AuthProvider>
       <ProjectProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
+            
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
@@ -52,6 +54,13 @@ function App() {
             <Route path="/projects/:id" element={
               <ProtectedRoute>
                 <ProjectDetail />
+              </ProtectedRoute>
+            } />
+
+            {/* 🔴 2. เพิ่ม Route สำหรับหน้า Profile */}
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             } />
 

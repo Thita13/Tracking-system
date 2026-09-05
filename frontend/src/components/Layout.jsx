@@ -5,7 +5,8 @@ import { Toaster } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import Notification from './Notification'; // นำเข้าคอมโพเนนต์ Notification ที่แยกไว้
 
-function Layout({ children }) {
+// 🔴 รับค่า hideSidebar เข้ามา (ค่าตั้งต้นเป็น false)
+function Layout({ children, hideSidebar = false }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,7 +125,7 @@ function Layout({ children }) {
                 </div>
                 <div className="py-2">
                   <Link to="/profile" onClick={() => setIsDropdownOpen(false)} className="w-full flex items-center px-5 py-2.5 text-sm font-semibold hover:bg-blue-50 hover:text-[#188BFE]">โปรไฟล์ของฉัน</Link>
-                  <Link to="/change-password" onClick={() => setIsDropdownOpen(false)} className="w-full flex items-center px-5 py-2.5 text-sm font-semibold hover:bg-blue-50 hover:text-[#188BFE]">เปลี่ยนรหัสผ่าน</Link>
+                  <Link to="/changepassword" onClick={() => setIsDropdownOpen(false)} className="w-full flex items-center px-5 py-2.5 text-sm font-semibold hover:bg-blue-50 hover:text-[#188BFE]">เปลี่ยนรหัสผ่าน</Link>
                   <button onClick={() => { setIsDropdownOpen(false); logout(); }} className="w-full flex items-center px-5 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50">ออกจากระบบ</button>
                 </div>
               </div>
@@ -135,25 +136,29 @@ function Layout({ children }) {
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 bg-[#FCFBF4] shadow-[4px_0_10px_rgba(0,0,0,0.05)] flex flex-col z-10">
-          <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">
-            {currentMenus.map((item) => {
-              const isActive = location.pathname.toLowerCase() === item.path.toLowerCase();
-              return (
-                <Link
-                  key={item.name}
-                  to={item.path}
-                  className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                      ? 'bg-[#188BFE] text-white shadow-md scale-[1.02] text-base font-bold'
-                      : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-                    }`}
-                >
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+        
+        {/* 🔴 2. เช็คว่าถ้า hideSidebar เป็น false (หรือไม่ได้ส่งค่ามา) ถึงจะแสดงแถบซ้าย */}
+        {!hideSidebar && (
+          <aside className="w-64 bg-[#FCFBF4] shadow-[4px_0_10px_rgba(0,0,0,0.05)] flex flex-col z-10 shrink-0">
+            <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">
+              {currentMenus.map((item) => {
+                const isActive = location.pathname.toLowerCase() === item.path.toLowerCase();
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className={`flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                        ? 'bg-[#188BFE] text-white shadow-md scale-[1.02] text-base font-bold'
+                        : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+                      }`}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        )}
 
         <main className="flex-1 overflow-auto p-8">
           <div className="max-w-7xl mx-auto">{children}</div>
