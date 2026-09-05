@@ -50,13 +50,13 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
         }
     };
 
-   const handleSave = async () => {
+    const handleSave = async () => {
         // 🔴 บังคับว่าก่อน @gmail.com ต้องมีอย่างน้อย 6 ตัวอักษรขึ้นไป (ป้องกันอีเมลสั้นเกินไปหรืออีเมลหลอก)
         const strictGmailRegex = /^[a-zA-Z0-9._%+-]{6,}@gmail\.com$/;
 
         if (!strictGmailRegex.test(formData.email)) {
             toast.error('กรุณากรอกอีเมลให้ถูกต้อง (ชื่ออีเมลต้องมีอย่างน้อย 6 ตัวอักษร และเป็น @gmail.com)');
-            return; 
+            return;
         }
 
         const isEditing = !!userToEdit;
@@ -66,7 +66,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
             const toastId = toast.loading('กำลังตรวจสอบอีเมลและส่งรหัสผ่าน...');
 
             const success = await sendPasswordEmail(formData.email, formData.name, newPassword);
-            
+
             toast.dismiss(toastId);
 
             if (!success) {
@@ -81,7 +81,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
             email: formData.email,
             phone: formData.phone,
             role: formData.role,
-            ...(isEditing ? {} : { password: newPassword }) 
+            ...(isEditing ? {} : { password: newPassword })
         };
 
         const finalPlayload = isEditing ? { ...payload, id_users: userToEdit.id_users } : payload;
@@ -92,17 +92,34 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
 
     // ฟังก์ชันรีเซ็ตรหัสผ่านใหม่
     const handleResetPassword = async () => {
+        const toastId = toast.loading('กำลังสุ่มรหัสผ่านและส่งอีเมล...');
         const resetPasswordStr = Math.random().toString(36).slice(-8);
-        const success = await sendPasswordEmail(userToEdit.email, userToEdit.name, resetPasswordStr);
+
+        // 🔴 แก้ไขตรงนี้จาก userToEdit.name เป็น userToEdit.username
+        const success = await sendPasswordEmail(userToEdit.email, userToEdit.username, resetPasswordStr);
+
+        toast.dismiss(toastId);
 
         if (success) {
-            onReset(userToEdit, resetPasswordStr);
-            toast.success('ระบบได้ส่งรหัสผ่านใหม่ไปยังอีเมลของผู้ใช้งานแล้ว');
+            try {
+                const response = await fetch(`http://localhost:5000/users/${userToEdit.id_users}/reset-password`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword: resetPasswordStr }),
+                });
+
+                if (!response.ok) throw new Error('ไม่สามารถบันท็กรหัสผ่านลงฐานข้อมูลได้');
+
+                toast.success('รีเซ็ตรหัสผ่านและส่งอีเมลสำเร็จ!');
+                onClose();
+            } catch (error) {
+                toast.error('ส่งอีเมลสำเร็จ แต่บันทึกลงฐานข้อมูลไม่สำเร็จ');
+            }
         } else {
             toast.error('ส่งอีเมลล้มเหลว กรุณาลองใหม่');
         }
     };
-
+    
     if (!isOpen) return null;
 
     const isEditing = !!userToEdit;
@@ -197,8 +214,8 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                         toast.success('ลบผู้ใช้งานเรียบร้อย!');
                         setIsConfirmOpen(false);
                         onClose();
-                        window.location.reload(); 
-                        
+                        window.location.reload();
+
                     } catch (error) {
                         toast.error(error.message || 'เกิดข้อผิดพลาดในการลบผู้ใช้งาน');
                     }

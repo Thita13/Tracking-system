@@ -1,4 +1,4 @@
-import { useState , useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 import UserModal from '../components/UserModal'; // นำเข้า Component ที่เราเพิ่งสร้าง
@@ -17,13 +17,13 @@ function Users() {
     try {
       setIsLoading(true);
       const response = await fetch('http://localhost:5000/users');
-        if (!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลผู้ใช้งานได้');
+      if (!response.ok) throw new Error('ไม่สามารถโหลดข้อมูลผู้ใช้งานได้');
       const data = await response.json();
       setUsers(data);
     } catch (error) {
-        toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้ใช้งาน');
+      toast.error('เกิดข้อผิดพลาดในการโหลดข้อมูลผู้ใช้งาน');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -44,29 +44,29 @@ function Users() {
   };
 
   // รับข้อมูลกลับมาจาก UserModal
-  const handleSaveUser =  async (payload, isEditing) => {
+  const handleSaveUser = async (payload, isEditing) => {
     try {
-        const url = isEditing 
+      const url = isEditing
         ? `http://localhost:5000/users/${editingUser.id_users}`
         : 'http://localhost:5000/users';
-        const method = isEditing ? 'PUT' : 'POST';
+      const method = isEditing ? 'PUT' : 'POST';
 
-        const response = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        if (!response.ok) {
-            throw new Error('ไม่สามารถบันทึกข้อมูลผู้ใช้งานได้');
-        }
-        toast.success(isEditing ? 'แก้ไขข้อมูลผู้ใช้งานเรียบร้อย!' : 'เพิ่มผู้ใช้งานใหม่เรียบร้อย!');
-        fetchUsers(); // รีเฟรชข้อมูลผู้ใช้งานหลังบันทึก
-        setIsModalOpen(false); // ปิด Modal หลังบันทึก
+      if (!response.ok) {
+        throw new Error('ไม่สามารถบันทึกข้อมูลผู้ใช้งานได้');
+      }
+      toast.success(isEditing ? 'แก้ไขข้อมูลผู้ใช้งานเรียบร้อย!' : 'เพิ่มผู้ใช้งานใหม่เรียบร้อย!');
+      fetchUsers(); // รีเฟรชข้อมูลผู้ใช้งานหลังบันทึก
+      setIsModalOpen(false); // ปิด Modal หลังบันทึก
 
-        } catch (error) {
-            toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้ใช้งาน');
-        }
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้ใช้งาน');
+    }
   };
 
   // --- ส่วนฟังก์ชันสำหรับ Reset Password ---
@@ -81,25 +81,19 @@ function Users() {
 
   const handleSaveResetPassword = async () => {
     if (!editingUser) return;
-    try{
-        const response = await fetch(`http://localhost:5000/users/${editingUser.id_users}/reset-password`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: editingUser.username,
-            email: editingUser.email,
-            phone: editingUser.phone,
-            role: editingUser.role,
-            newPassword: resetNewPassword
-          }),
-        });
-        if (!response.ok) throw new Error('ไม่สามารถรีเซ็ตรหัสผ่านได้');
-        toast.success('รีเซ็ตรหัสผ่านเรียบร้อย!');
-        setIsResetModalOpen(false);
-      } catch (error) {
-        toast.error('เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน');
-      
-          
+    try {
+      const response = await fetch(`http://localhost:5000/users/${editingUser.id_users}/reset-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newPassword: resetNewPassword
+        }),
+      });
+      if (!response.ok) throw new Error('ไม่สามารถรีเซ็ตรหัสผ่านได้');
+      toast.success('รีเซ็ตรหัสผ่านเรียบร้อย!');
+      setIsResetModalOpen(false);
+    } catch (error) {
+      toast.error('เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน');
     }
   };
 

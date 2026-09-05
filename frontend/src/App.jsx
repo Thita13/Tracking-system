@@ -10,7 +10,7 @@ import Projects from './pages/Projects';
 import MyProjects from './pages/MyProjects';
 import ProjectDetail from './pages/ProjectDetail';
 import Profile from './pages/Profile';
-
+import ChangePassword from './pages/ChangePassword';
 
 function App() {
   return (
@@ -20,7 +20,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-            
+
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
@@ -57,10 +57,15 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* 🔴 2. เพิ่ม Route สำหรับหน้า Profile */}
             <Route path="/profile" element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/changepassword" element={
+              <ProtectedRoute>
+                <ChangePassword />
               </ProtectedRoute>
             } />
 
