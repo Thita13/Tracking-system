@@ -51,9 +51,22 @@ function CreateProject() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.projectType || !formData.assignedInterior) {
-      toast.error('กรุณากรอกข้อมูลให้ครบถ้วน!');
+    // 🔴 1. ตรวจสอบว่ากรอกข้อมูลสำคัญครบหรือไม่
+    if (
+        !formData.projectName.trim() || 
+        !formData.projectType || 
+        !formData.customerName.trim() || 
+        !formData.assignedInterior
+    ) {
+      toast.error('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน!');
       return;
+    }
+
+    // 🔴 2. ตรวจสอบเบอร์โทรศัพท์ (กฎเดียวกับหน้าเพิ่มผู้ใช้)
+    const phoneRegex = /^0\d{8,9}$/;
+    if (!formData.customerPhone || !phoneRegex.test(formData.customerPhone)) {
+        toast.error('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลักเท่านั้น)');
+        return;
     }
 
     const data = new FormData();
@@ -88,9 +101,7 @@ function CreateProject() {
         body: JSON.stringify({
           status: 'SEND_TO_INTERIOR',
           id_task: result.taskId,
-          // 🔴 แก้ไข: ใช้ ID ของคนที่ล็อกอิน (Project Director) เป็นคนสั่งงาน
           id_users: user.id, 
-          // 🔴 แก้ไข: ใช้แผนกของคนที่ล็อกอิน
           department: user.role || 'Project Director' 
         })
       });
@@ -115,13 +126,13 @@ function CreateProject() {
 
           {/* ชื่อโครงการ */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">ชื่อโครงการหรือสถานที่</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">ชื่อโครงการหรือสถานที่ <span className="text-red-500">*</span></label>
             <input type="text" name="projectName" value={formData.projectName} onChange={handleChange} placeholder="กรอกชื่องาน" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
           {/* ประเภทโครงการ */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทโครงการ</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทโครงการ <span className="text-red-500">*</span></label>
             <div className="flex gap-6">
               {['home', 'condo'].map((type) => (
                 <label key={type} className="flex items-center space-x-2 cursor-pointer">
@@ -134,7 +145,7 @@ function CreateProject() {
 
           {/* ชื่อลูกค้า */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">ชื่อลูกค้า</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">ชื่อลูกค้า <span className="text-red-500">*</span></label>
             <input
               type="text"
               name="customerName"
@@ -147,13 +158,19 @@ function CreateProject() {
 
           {/* เบอร์โทรติดต่อ */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">เบอร์โทรติดต่อ</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">เบอร์โทรติดต่อ <span className="text-red-500">*</span></label>
             <input
               type="tel"
               name="customerPhone"
+              maxLength={10} // 🔴 บังคับพิมพ์ไม่เกิน 10 ตัว
               value={formData.customerPhone}
-              onChange={handleChange}
-              placeholder="หมายเลขโทรศัพท์"
+              onChange={(e) => {
+                // 🔴 กรองให้รับเฉพาะตัวเลขเท่านั้น
+                const numericValue = e.target.value.replace(/\D/g, '');
+                if (numericValue.length <= 10) {
+                    setFormData((prev) => ({ ...prev, customerPhone: numericValue }));
+                }
+              }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -194,7 +211,7 @@ function CreateProject() {
 
           {/* มอบหมายงาน */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">มอบหมายงานให้ Interior Design</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">มอบหมายงานให้ Interior Design <span className="text-red-500">*</span></label>
             <select name="assignedInterior" value={formData.assignedInterior} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none bg-white focus:ring-2 focus:ring-blue-500">
               <option value="">เลือกพนักงาน Interior</option>
               {interiorStaff.map((staff) => (

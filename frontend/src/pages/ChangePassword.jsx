@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 function ChangePassword() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,7 +20,7 @@ function ChangePassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       toast.error('รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน');
       return;
@@ -66,9 +66,9 @@ function ChangePassword() {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto mt-6 mb-10 px-4 w-full">
-        
+
         <div className="bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-gray-200 overflow-hidden">
-          
+
           <form onSubmit={handleSubmit}>
             <div className="p-8 md:p-12">
               <h2 className="text-[24px] font-bold text-gray-900 mb-10">
@@ -77,18 +77,19 @@ function ChangePassword() {
 
               <div className="flex flex-col items-center justify-center">
                 <div className="w-full max-w-lg flex flex-col gap-6">
-                  
+
                   {/* รหัสผ่านเดิม */}
                   <div>
                     <label className="block text-[14px] font-bold text-gray-700 mb-2">
                       รหัสผ่านเดิม
                     </label>
                     <div className="relative">
-                      <input 
+                      <input
                         type={showOldPassword ? "text" : "password"}
                         required
                         value={oldPassword}
-                        onChange={(e) => setOldPassword(e.target.value)}
+                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        onChange={(e) => setOldPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                       <button
@@ -107,11 +108,12 @@ function ChangePassword() {
                       รหัสผ่านใหม่
                     </label>
                     <div className="relative">
-                      <input 
+                      <input
                         type={showNewPassword ? "text" : "password"}
                         required
                         value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
+                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        onChange={(e) => setNewPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                       <button
@@ -130,11 +132,12 @@ function ChangePassword() {
                       ยืนยันรหัสผ่านใหม่
                     </label>
                     <div className="relative">
-                      <input 
+                      <input
                         type={showConfirmPassword ? "text" : "password"}
                         required
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        onChange={(e) => setConfirmPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                       <button
@@ -156,19 +159,18 @@ function ChangePassword() {
 
             {/* ส่วนปุ่มกดด้านล่าง */}
             <div className="bg-gray-50/50 px-8 py-5 flex justify-end gap-4 items-center">
-              <button 
+              <button
                 type="button"
                 onClick={() => navigate(-1)}
                 className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-bold bg-white hover:bg-gray-50 transition-colors shadow-sm text-[15px]"
               >
                 ยกเลิก
               </button>
-              <button 
+              <button
                 type="submit"
                 disabled={isLoading}
-                className={`px-6 py-2.5 rounded-lg text-white font-bold transition-colors shadow-sm text-[15px] ${
-                  isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-[#4068FF] hover:bg-blue-600'
-                }`}
+                className={`px-6 py-2.5 rounded-lg text-white font-bold transition-colors shadow-sm text-[15px] ${isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-[#4068FF] hover:bg-blue-600'
+                  }`}
               >
                 {isLoading ? 'กำลังประมวลผล...' : 'เปลี่ยนรหัสผ่าน'}
               </button>

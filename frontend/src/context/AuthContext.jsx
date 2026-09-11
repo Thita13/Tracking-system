@@ -8,7 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
+    // 🔴 1. เปลี่ยนจาก localStorage เป็น sessionStorage ตรงนี้
+    const savedUser = sessionStorage.getItem('user');
     if (savedUser) {
         try {
             setUser(JSON.parse(savedUser));
@@ -20,7 +21,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = () => {
-    localStorage.removeItem('user');
+    // 🔴 2. เปลี่ยนจาก localStorage เป็น sessionStorage ตรงนี้ด้วย
+    sessionStorage.removeItem('user');
     setUser(null);
     window.location.href = '/login';
   };

@@ -51,42 +51,99 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
     };
 
     const handleSave = async () => {
-        // 🔴 บังคับว่าก่อน @gmail.com ต้องมีอย่างน้อย 6 ตัวอักษรขึ้นไป (ป้องกันอีเมลสั้นเกินไปหรืออีเมลหลอก)
-        const strictGmailRegex = /^[a-zA-Z0-9._%+-]{6,}@gmail\.com$/;
+        // 1. ตรวจสอบรูปแบบอีเมลเบื้องต้น
+        const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+        if (!gmailRegex.test(formData.email)) {
+            toast.error('กรุณากรอกอีเมลให้ถูกต้อง (ต้องเป็น @gmail.com เท่านั้น)');
+            return;
+        }
 
-        if (!strictGmailRegex.test(formData.email)) {
-            toast.error('กรุณากรอกอีเมลให้ถูกต้อง (ชื่ออีเมลต้องมีอย่างน้อย 6 ตัวอักษร และเป็น @gmail.com)');
+        // 2. ตรวจสอบเบอร์โทรศัพท์
+        const phoneRegex = /^0\d{8,9}$/;
+        if (!formData.phone || !phoneRegex.test(formData.phone)) {
+            toast.error('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลักเท่านั้น)');
             return;
         }
 
         const isEditing = !!userToEdit;
+        const isEmailChanged = isEditing && formData.email !== userToEdit.email;
 
-        // 2. ถ้าเป็นการเพิ่มผู้ใช้ใหม่ ให้ทดสอบส่งอีเมลก่อนบันทึกจริง
-        if (!isEditing) {
-            const toastId = toast.loading('กำลังตรวจสอบอีเมลและส่งรหัสผ่าน...');
+        // 3. เช็คอีเมลซ้ำในฐานข้อมูลระบบเราเอง
+        try {
+            const toastIdCheck = toast.loading('กำลังตรวจสอบข้อมูล...');
+            const res = await fetch('http://localhost:5000/users');
+            const users = await res.json();
 
-            const success = await sendPasswordEmail(formData.email, formData.name, newPassword);
+            const isDuplicate = users.some(u =>
+                u.email === formData.email &&
+                u.id_users !== userToEdit?.id_users
+            );
 
-            toast.dismiss(toastId);
+            toast.dismiss(toastIdCheck);
 
-            if (!success) {
-                toast.error('อีเมลนี้ไม่มีอยู่จริง หรือไม่สามารถส่งอีเมลได้ กรุณาตรวจสอบใหม่อีกครั้ง');
-                return; // หยุดการทำงาน ไม่สร้าง User
+            if (isDuplicate) {
+                toast.error('อีเมลนี้ถูกใช้งานแล้วในระบบ กรุณาใช้อีเมลอื่น');
+                return; 
+            }
+        } catch (error) {
+            toast.error('ตรวจสอบข้อมูลล้มเหลว กรุณาลองใหม่');
+            return;
+        }
+
+        let passwordToSave = newPassword;
+
+        // 🔴 4. เช็คว่าอีเมลนี้มีอยู่จริงบนโลกหรือไม่ ก่อนทำการส่งและบันทึก
+        if (!isEditing || isEmailChanged) {
+            const toastId = toast.loading('กำลังตรวจสอบความถูกต้องของอีเมล...');
+
+            try {
+                // ใช้ API ฟรีเช็คอีเมลว่ามีตัวตนจริงหรือไม่ (จำลองการเช็ค)
+                // หมายเหตุ: ในการใช้งานจริงแบบ 100% คุณต้องไปสมัคร api key ฟรีที่เว็บ abstractapi.com หรือ emailvalidation.io มาใส่แทน 'YOUR_API_KEY'
+                const verifyRes = await fetch(`https://emailvalidation.abstractapi.com/v1/?api_key=YOUR_API_KEY&email=${formData.email}`);
+                const verifyData = await verifyRes.json();
+
+                // ถ้า API เช็คแล้วพบว่าอีเมลไม่มีอยู่จริง (UNDELIVERABLE)
+                if (verifyData.deliverability === "UNDELIVERABLE") {
+                    toast.dismiss(toastId);
+                    toast.error('อีเมลนี้ไม่มีอยู่จริง กรุณาตรวจสอบและกรอกใหม่อีกครั้ง');
+                    return; // 🛑 บล็อกการทำงาน ไม่ให้บันทึกลงฐานข้อมูลและไม่ส่ง EmailJS
+                }
+
+                if (isEmailChanged) {
+                    passwordToSave = Math.random().toString(36).slice(-8);
+                }
+
+                // ถ้าอีเมลมีจริง ค่อยส่งรหัสผ่าน
+                toast.loading(isEmailChanged ? 'กำลังส่งรหัสผ่านใหม่...' : 'กำลังส่งรหัสผ่าน...', { id: toastId });
+                const success = await sendPasswordEmail(formData.email, formData.name, passwordToSave);
+                toast.dismiss(toastId);
+
+                if (!success) {
+                    toast.error('ส่งอีเมลล้มเหลว กรุณาลองใหม่');
+                    return;
+                }
+            } catch (error) {
+                toast.dismiss(toastId);
+                toast.error('ระบบตรวจสอบอีเมลขัดข้อง หรือไม่ได้ใส่ API Key');
+                return;
             }
         }
 
-        // 3. เตรียมข้อมูล payload สำหรับส่งไปบันทึก
+        // 5. เตรียมข้อมูล payload สำหรับส่งไปบันทึก
         const payload = {
             username: formData.name,
             email: formData.email,
             phone: formData.phone,
             role: formData.role,
-            ...(isEditing ? {} : { password: newPassword })
         };
+
+        if (!isEditing || isEmailChanged) {
+            payload.password = passwordToSave;
+        }
 
         const finalPlayload = isEditing ? { ...payload, id_users: userToEdit.id_users } : payload;
 
-        // 4. บันทึกข้อมูลลงฐานข้อมูล
+        // 6. บันทึกข้อมูลลงฐานข้อมูล
         onSave(finalPlayload, isEditing);
     };
 
@@ -95,7 +152,6 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
         const toastId = toast.loading('กำลังสุ่มรหัสผ่านและส่งอีเมล...');
         const resetPasswordStr = Math.random().toString(36).slice(-8);
 
-        // 🔴 แก้ไขตรงนี้จาก userToEdit.name เป็น userToEdit.username
         const success = await sendPasswordEmail(userToEdit.email, userToEdit.username, resetPasswordStr);
 
         toast.dismiss(toastId);
@@ -119,7 +175,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
             toast.error('ส่งอีเมลล้มเหลว กรุณาลองใหม่');
         }
     };
-    
+
     if (!isOpen) return null;
 
     const isEditing = !!userToEdit;
@@ -135,21 +191,42 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                     </div>
 
                     <div className="p-6 space-y-5">
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1.5">ชื่อ - นามสกุล</label><input type="text" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={inputClass} /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1.5">อีเมล</label>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1.5">ชื่อ - นามสกุล</label>
+                            <input type="text" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={inputClass} />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1.5">อีเมล</label>
                             <input
                                 type="text"
                                 value={formData.email || ''}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 onBlur={(e) => {
-                                    if (!/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(e.target.value)) {
+                                    // เปลี่ยนมาใช้ Regular Expression ที่แก้ไขใหม่
+                                    if (e.target.value && !/^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(e.target.value)) {
                                         toast.error('อีเมลต้องเป็น @gmail.com เท่านั้น');
                                     }
                                 }}
                                 className={inputClass}
-                            /></div>
-                        <div><label className="block text-sm font-bold text-gray-700 mb-1.5">เบอร์โทร</label>
-                            <input type="tel" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className={inputClass} /></div>
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1.5">เบอร์โทร</label>
+                            <input
+                                type="tel"
+                                maxLength={10}
+                                value={formData.phone || ''}
+                                onChange={(e) => {
+                                    const numericValue = e.target.value.replace(/\D/g, '');
+                                    if (numericValue.length <= 10) {
+                                        setFormData({ ...formData, phone: numericValue });
+                                    }
+                                }}
+                                className={inputClass}
+                            />
+                        </div>
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-2">ตำแหน่ง</label>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+// 🔴 1. นำเข้า Toaster เพิ่มเข้ามาต่อท้าย toast
+import toast, { Toaster } from 'react-hot-toast'; 
 import { useAuth } from '../context/AuthContext';
 
 function Login() {
@@ -15,7 +17,7 @@ function Login() {
     e.preventDefault();
 
     if (!email.endsWith('@gmail.com')) {
-      alert('กรุณาใช้แค่ @gmail.com เท่านั้น');
+      toast.error('กรุณาใช้อีเมล @gmail.com เท่านั้น'); 
       return;
     }
 
@@ -31,21 +33,32 @@ function Login() {
       const data = await response.json();
       
       if (response.ok) {
-        localStorage.setItem('user', JSON.stringify(data.user));
+        toast.success('เข้าสู่ระบบสำเร็จ'); 
+        // 🔴 เปลี่ยนจาก localStorage เป็น sessionStorage
+        sessionStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
         navigate('/dashboard');
       } else {
-        alert(data.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        
+        let errorMessage = data.message;
+        if (errorMessage === 'Invalid password' || errorMessage === 'User not found' || errorMessage === 'ไม่พบผู้ใช้งาน หรือบัญชีนี้ถูกลบไปแล้ว') {
+            errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง';
+        }
+        toast.error(errorMessage); 
       }
 
     } catch (error) {
       console.error(error);
-      alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+      toast.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบอินเทอร์เน็ต'); 
     }
   };
 
   return (
     <div className="flex h-screen w-full font-sans">
+      
+      {/* 🔴 2. วางคอมโพเนนต์ Toaster ไว้ด้านบนสุดของ UI */}
+      <Toaster position="top-center" reverseOrder={false} />
+
       <div className="flex w-full flex-col items-center justify-center bg-blue-500 p-8">
         <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-xl md:p-12">
           
