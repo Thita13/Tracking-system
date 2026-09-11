@@ -11,15 +11,25 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 const multer = require('multer');
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, 'uploads'));
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// 🔴 นำข้อมูล API Keys ของคุณมาใส่ตรงนี้
+cloudinary.config({
+    cloud_name: 'dntnejjp',
+    api_key: '585416222323117',
+    api_secret: 'U5vmVy7bCIfeRvedJxWGiuPxJBQ'
 });
-const upload = multer({ storage });
+
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'project_tracking_files', // โฟลเดอร์ที่จะถูกสร้างใน Cloudinary
+        resource_type: 'auto', // สำคัญมาก: อนุญาตให้อัปโหลดได้ทั้งรูป, PDF, Word
+    },
+});
+
+const upload = multer({ storage: storage });
 
 app.use(cors());
 app.use(express.json());
@@ -43,32 +53,37 @@ app.get('/test-db', (req, res) => {
     });
 });
 
-// Create a new user
+// Create a new user (🔴 แก้ไข: เพิ่มเช็คอีเมลซ้ำ)
 app.post('/users', (req, res) => {
-    const { username,
-        phone,
-        email,
-        role,
-        password } = req.body;
+    const { username, phone, email, role, password } = req.body;
 
-    const hashedPassword = bcrypt.hashSync(password, 10);
+    // 1. เช็คก่อนว่าอีเมลนี้มีคนใช้ไปแล้วหรือยัง (นับเฉพาะคนที่ยัง Active)
+    const checkEmailSql = 'SELECT id_users FROM users WHERE email = ? AND is_active = 1';
 
-    const sql = 'INSERT INTO users (username, phone, email, role, password) VALUES (?, ?, ?, ?, ?)';
-    db.query(sql, [username,
-        phone,
-        email,
-        role,
-        hashedPassword], (err, results) => {
+    db.query(checkEmailSql, [email], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        // ถ้าเจอข้อมูลแปลว่าอีเมลซ้ำ ให้ส่ง Error 400 กลับไป
+        if (results.length > 0) {
+            return res.status(400).json({ message: 'อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น' });
+        }
+
+        // 2. ถ้าไม่ซ้ำ ถึงจะอนุญาตให้สร้างผู้ใช้ใหม่ได้
+        const hashedPassword = bcrypt.hashSync(password, 10);
+        const sql = 'INSERT INTO users (username, phone, email, role, password) VALUES (?, ?, ?, ?, ?)';
+
+        db.query(sql, [username, phone, email, role, hashedPassword], (err, insertResults) => {
             if (err) {
                 return res.status(500).json({ error: err.message });
             }
-            res.status(201).json({ message: 'User created', userId: results.insertId });
+            res.status(201).json({ message: 'User created', userId: insertResults.insertId });
         });
+    });
 });
 
-//Get all users
+// Get all users (ดึงมาเฉพาะคนที่ is_active = 1)
 app.get('/users', (req, res) => {
-    const sql = 'SELECT id_users, username, phone, email, role, created_at, updated_at FROM users';
+    const sql = 'SELECT id_users, username, phone, email, role, created_at, updated_at FROM users WHERE is_active = 1';
     db.query(sql, (err, results) => {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -92,48 +107,68 @@ app.get('/users/:id', (req, res) => {
     });
 });
 
-// Update user by ID
+// Update user by ID (🔴 แก้ไข: เพิ่มเช็คอีเมลซ้ำกับคนอื่น)
 app.put('/users/:id', (req, res) => {
     const id = req.params.id;
     const { username, phone, email, role, password } = req.body;
 
-    let sql;
-    let params;
+    // 1. เช็คอีเมลซ้ำ โดยต้อง "ยกเว้น" ตัวเอง (เผื่อแอดมินไม่ได้เปลี่ยนอีเมล แค่แก้ชื่อเฉยๆ)
+    const checkEmailSql = 'SELECT id_users FROM users WHERE email = ? AND id_users != ? AND is_active = 1';
 
-    if (password && password.length > 0) {
-        const hashedPassword = bcrypt.hashSync(password, 10);
-        sql = 'UPDATE users SET username = ?, phone = ?, email = ?, role = ?, password = ? WHERE id_users = ?';
-        params = [username, phone, email, role, hashedPassword, id];
-    } else {
-        sql = 'UPDATE users SET username = ?, phone = ?, email = ?, role = ? WHERE id_users = ?';
-        params = [username, phone, email, role, id];
-    }
+    db.query(checkEmailSql, [email, id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
 
-    db.query(sql, params, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        } // ปิด if(err) ตรงนี้
-
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ message: 'User not found' });
+        // ถ้าเจอข้อมูลแปลว่าแอดมินพยายามเปลี่ยนไปใช้อีเมลที่มีคนอื่นใช้อยู่แล้ว
+        if (results.length > 0) {
+            return res.status(400).json({ message: 'อีเมลนี้มีผู้ใช้งานรายอื่นใช้แล้ว กรุณาใช้อีเมลอื่น' });
         }
 
-        res.json({ message: 'User updated successfully' });
-    }); // ปิด db.query ตรงนี้
+        // 2. ถ้าไม่ซ้ำ ค่อยทำการอัปเดตข้อมูล
+        let sql;
+        let params;
+
+        if (password && password.length > 0) {
+            const hashedPassword = bcrypt.hashSync(password, 10);
+            sql = 'UPDATE users SET username = ?, phone = ?, email = ?, role = ?, password = ? WHERE id_users = ?';
+            params = [username, phone, email, role, hashedPassword, id];
+        } else {
+            sql = 'UPDATE users SET username = ?, phone = ?, email = ?, role = ? WHERE id_users = ?';
+            params = [username, phone, email, role, id];
+        }
+
+        db.query(sql, params, (updateErr, updateResults) => {
+            if (updateErr) {
+                return res.status(500).json({ error: updateErr.message });
+            }
+
+            if (updateResults.affectedRows === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            res.json({ message: 'User updated successfully' });
+        });
+    });
 });
 
-// Delete user by ID
+// Delete user by ID (ระงับบัญชีโดยใช้ is_active = 0)
 app.delete('/users/:id', (req, res) => {
     const id = req.params.id;
-    const sql = 'DELETE FROM users WHERE id_users = ?';
-    db.query(sql, [id], (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        res.json({ message: 'User deleted' });
+
+    // ปลดชื่อออกจากการรับผิดชอบงานในปัจจุบัน (ให้งานกลับไปเป็นสถานะว่าง)
+    db.query('UPDATE tasks SET assign_to = NULL WHERE assign_to = ?', [id], (err) => {
+        if (err) console.error("Clear assign_to error:", err);
+
+        // เปลี่ยน is_active เป็น 0 แทนการลบทิ้ง
+        const sql = 'UPDATE users SET is_active = 0 WHERE id_users = ?';
+        db.query(sql, [id], (err, results) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            if (results.affectedRows === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            res.json({ message: 'User deleted successfully' });
+        });
     });
 });
 
@@ -153,7 +188,7 @@ app.put('/users/:id/change-password', (req, res) => {
         // ขั้นตอนที่ 2: เทียบรหัสผ่านที่พิมพ์เข้ามา (oldPassword) กับรหัสในฐานข้อมูล
         // รหัสที่สุ่มมาจะถูกตรวจสอบด้วย bcrypt.compareSync ว่าตรงกับ Hash ในระบบหรือไม่
         const isMatch = bcrypt.compareSync(oldPassword, user.password);
-        
+
         if (!isMatch) {
             return res.status(401).json({ message: 'รหัสผ่านเดิมไม่ถูกต้อง' });
         }
@@ -165,7 +200,7 @@ app.put('/users/:id/change-password', (req, res) => {
         const sqlUpdate = 'UPDATE users SET password = ? WHERE id_users = ?';
         db.query(sqlUpdate, [hashedNewPassword, userId], (updateErr) => {
             if (updateErr) return res.status(500).json({ error: updateErr.message });
-            
+
             res.json({ message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
         });
     });
@@ -184,27 +219,32 @@ app.put('/users/:id/reset-password', (req, res) => {
     db.query(sqlUpdate, [hashedNewPassword, userId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         if (results.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
-        
+
         res.json({ message: 'รีเซ็ตรหัสผ่านสำเร็จ' });
     });
 });
 
-// Login
+// Login (กรองไม่ให้คนที่ถูกลบ is_active = 0 เข้าสู่ระบบ)
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
-    const sql = 'SELECT * FROM users WHERE email = ?';
+
+    // เช็คอีเมลรหัสผ่าน และต้องเป็น is_active = 1 เท่านั้น
+    const sql = 'SELECT * FROM users WHERE email = ? AND is_active = 1';
+
     db.query(sql, [email], (err, results) => {
         if (err) {
             return res.status(500).json({ error: err.message });
         }
         if (results.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'ไม่พบผู้ใช้งาน หรือบัญชีนี้ถูกลบไปแล้ว' });
         }
+
         const user = results[0];
         const isMatch = bcrypt.compareSync(password, user.password);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid password' });
         }
+
         res.json({ message: 'Login success', user: { id: user.id_users, username: user.username, email: user.email, role: user.role } });
     });
 });
@@ -244,7 +284,7 @@ app.post('/tasks', upload.single('file'), (req, res) => {
         db.query(trackingSql, ['CREATE_TASK', newTaskId, parseInt(id_users), 'Project Director'], (trackErr) => {
             if (trackErr) console.error("Tracking Error:", trackErr);
 
-           if (req.file) {
+            if (req.file) {
                 // 🔴 บันทึก id_users ลงในไฟล์เริ่มต้นตอนสร้างโปรเจกต์ด้วย
                 const insertFileSql = 'INSERT INTO files (file_name, file_path, version, id_task, id_users) VALUES (?, ?, 1, ?, ?)';
                 db.query(insertFileSql, [req.file.originalname, req.file.path, newTaskId, parseInt(id_users)], (fileErr) => {
@@ -395,10 +435,10 @@ app.get('/tasks/:id/tracking', (req, res) => {
 app.post('/tasks/:id/comments', (req, res) => {
     const taskId = req.params.id;
     const { comment, created_at, id_users } = req.body;
-    
+
     // 1. ค้นหา id_tracking ของ "ผู้ใช้คนนี้" ในงานนี้ ที่มีอยู่แล้ว
     const findTrackingSql = 'SELECT id_tracking FROM tracking WHERE id_task = ? AND id_users = ? ORDER BY action_at DESC LIMIT 1';
-    
+
     db.query(findTrackingSql, [taskId, id_users], (trackErr, trackResults) => {
         if (trackErr) {
             console.error("Find tracking error:", trackErr);
@@ -427,7 +467,7 @@ app.post('/tasks/:id/comments', (req, res) => {
         // ฟังก์ชันช่วยบันทึกคอมเมนต์
         function executeInsertComment(trackingId) {
             const insertSql = 'INSERT INTO comments (comment, created_at, id_users, id_task, id_tracking) VALUES (?, ?, ?, ?, ?)';
-            
+
             db.query(insertSql, [comment, created_at, id_users, taskId, trackingId], (err, results) => {
                 if (err) {
                     console.error("Insert comment error:", err);
@@ -443,7 +483,7 @@ app.post('/tasks/:id/comments', (req, res) => {
 app.get('/tasks/:id/comments', (req, res) => {
     const taskId = req.params.id;
     const sql = 'SELECT comments.id_comment, comments.comment, comments.created_at, users.username AS commented_by, users.role AS commented_by_role FROM comments JOIN users ON comments.id_users = users.id_users WHERE comments.id_task = ? ORDER BY comments.created_at ASC';
-    
+
     db.query(sql, [taskId], (err, results) => {
         if (err) {
             console.error("Get comments error:", err);
@@ -453,18 +493,19 @@ app.get('/tasks/:id/comments', (req, res) => {
     });
 });
 
-// 🔴 1. แก้ไข API อัปโหลดไฟล์ ให้รับค่า userId และบันทึกลง Database
+// 🔴 1. แก้ไข API อัปโหลดไฟล์ ให้รับค่า userId และบันทึกลง Database (อัปเดตสำหรับ Cloudinary)
 app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
     const taskId = req.params.id;
-    const userId = req.body.userId || null; // <--- เพิ่มบรรทัดนี้เพื่อรับค่าจากหน้าเว็บ
+    const userId = req.body.userId || null; // <--- รับค่า userId จากหน้าเว็บ
 
     if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบไฟล์ที่อัปโหลด' });
     }
 
     const fileName = req.file.originalname;
-    const fileNameStored = req.file.filename;
-    const filePathToStore = 'uploads/' + fileNameStored;
+    
+    // 🌟 เปลี่ยนมารับ URL ลิงก์ตรงๆ จาก Cloudinary
+    const fileUrl = req.file.path; 
 
     const versionSql = `SELECT COALESCE(MAX(version), 0) + 1 AS nextVersion FROM files WHERE id_task = ?`;
 
@@ -476,24 +517,26 @@ app.post('/tasks/:id/files', upload.single('file'), (req, res) => {
         // <--- เพิ่ม id_users เข้าไปในคำสั่ง INSERT --->
         const insertSql = 'INSERT INTO files (file_name, file_path, id_task, version, id_users) VALUES (?, ?, ?, ?, ?)';
 
-        db.query(insertSql, [fileName, filePathToStore, taskId, nextVersion, userId], (err, results) => {
+        // 🔴 บันทึก fileUrl (ลิงก์ออนไลน์) ลงฐานข้อมูล
+        db.query(insertSql, [fileName, fileUrl, taskId, nextVersion, userId], (err, results) => {
             if (err) return res.status(500).json({ error: err.message });
 
             res.status(201).json({
                 message: 'File uploaded successfully',
                 fileId: results.insertId,
-                fileUrl: `http://localhost:5000/${filePathToStore}`
+                fileUrl: fileUrl // 🔴 ส่ง URL กลับไปให้หน้าเว็บตรงๆ ได้เลย
             });
         });
     });
 });
 
-// 🔴 2. แก้ไข API ดึงไฟล์ ให้ดึง id_users และ role ของคนอัปโหลดออกมาด้วย
+// 🔴 2. แก้ไข API ดึงไฟล์ ให้ดึง id_users, role และ "ชื่อ" ของคนอัปโหลดออกมาด้วย
 app.get('/tasks/:id/files', (req, res) => {
     const taskId = req.params.id;
-    // ใช้ LEFT JOIN เพื่อเอา role ของเจ้าของไฟล์มาเช็คสิทธิ์การลบ
+    // เพิ่ม u.username AS uploaded_by_name เพื่อเอาชื่อไปโชว์ตอน Hover
     const sql = `
-        SELECT f.id_files, f.file_name, f.file_path, f.version, f.created_at, f.id_users, u.role AS uploaded_by_role 
+        SELECT f.id_files, f.file_name, f.file_path, f.version, f.created_at, f.id_users, 
+               u.role AS uploaded_by_role, u.username AS uploaded_by_name 
         FROM files f 
         LEFT JOIN users u ON f.id_users = u.id_users 
         WHERE f.id_task = ? 
@@ -505,28 +548,24 @@ app.get('/tasks/:id/files', (req, res) => {
     });
 });
 
-// 3. API ลบไฟล์ (อันนี้โครงสร้างเดิมของคุณใช้ได้ดีอยู่แล้วครับ)
+// 3. API ลบไฟล์ (อัปเดตสำหรับ Cloudinary)
 app.delete('/tasks/:taskId/files/:fileId', (req, res) => {
     const { taskId, fileId } = req.params;
 
+    // เช็คว่ามีไฟล์นี้อยู่ใน Database หรือไม่
     const selectSql = 'SELECT file_path FROM files WHERE id_files = ? AND id_task = ?';
     db.query(selectSql, [fileId, taskId], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         if (results.length === 0) return res.status(404).json({ error: 'ไม่พบไฟล์' });
 
-        const filePath = results[0].file_path;
+        // ลบข้อมูลไฟล์ออกจาก Database
         const deleteSql = 'DELETE FROM files WHERE id_files = ?';
-
         db.query(deleteSql, [fileId], (err) => {
             if (err) return res.status(500).json({ error: err.message });
 
-            if (filePath) {
-                const fileName = filePath.split(/[\\/]/).pop();
-                const absolutePath = path.join(__dirname, 'uploads', fileName);
-                if (fs.existsSync(absolutePath)) {
-                    fs.unlinkSync(absolutePath);
-                }
-            }
+            // 🔴 ลบโค้ดส่วนที่ใช้ fs.unlinkSync (ลบไฟล์ในเครื่อง) ของเดิมทิ้งไป 
+            // เพราะตอนนี้เราเก็บไฟล์ไว้บน Cloudinary แล้ว แค่ลบข้อมูลใน DB หน้าเว็บก็จะไม่แสดงไฟล์นี้แล้วครับ
+
             res.json({ message: 'ลบไฟล์สำเร็จ' });
         });
     });
@@ -673,7 +712,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         `;
         params = [userId];
 
-    // 2. แผนก Interior
+        // 2. แผนก Interior
     } else if (normalizedRole === 'interior') {
         sql = `
             SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at, u.username AS action_by, u.role AS action_by_role, t.task_type AS detail
@@ -706,7 +745,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         `;
         params = [userId, userId, userId];
 
-    // 3. แผนกอื่นๆ เช่น Pricing
+        // 3. แผนกอื่นๆ เช่น Pricing
     } else {
         sql = `
             SELECT t.id_task, t.task_name, t.task_type, t.status, tr.status AS tracking_status, tr.action_at AS created_at, u.username AS action_by, u.role AS action_by_role, t.task_type AS detail
@@ -734,7 +773,7 @@ app.get('/tasks/notifications/:userId/:role', (req, res) => {
         `;
         params = [userId, userId, userId, userId, userId];
     }
-    
+
     db.query(sql, params, (err, results) => {
         if (err) {
             console.error("Error fetching notifications:", err);
