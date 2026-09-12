@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom'; // 🔴 1. นำเข้า useLocation และ useNavigate
 import Layout from '../components/Layout';
 import ProjectTable from '../components/ProjectTable';
 import { useAuth } from '../context/AuthContext';
 
 function MyProjects() {
   const { user } = useAuth();
+  const location = useLocation(); // 🔴 เรียกใช้
+  const navigate = useNavigate(); // 🔴 เรียกใช้
+  
   const [tasks, setTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 🔴 เปลี่ยนเป็น State สำหรับ Dropdown เลือกสถานะงาน ('active' = กำลังดำเนินการ, 'completed' = เสร็จสิ้นแล้ว, 'all' = ทั้งหมด)
   const [filterStatus, setFilterStatus] = useState('active');
+  const [searchTerm, setSearchTerm] = useState(''); // 🔴 2. State สำหรับเก็บคำค้นหา
+
+  // 🔴 3. ดึงคำค้นหาที่ถูกส่งมาจาก Header
+  useEffect(() => {
+    if (location.state?.searchKeyword !== undefined) {
+      setSearchTerm(location.state.searchKeyword);
+    }
+  }, [location.state]);
 
   // ฟังก์ชันดึงข้อมูลงานทั้งหมดของฉัน
   const fetchMyTasks = async () => {
@@ -46,28 +57,61 @@ function MyProjects() {
     }
   }, [user]);
 
-  // 🔴 กรองข้อมูลงานตามค่าที่เลือกใน Dropdown
+  // 🔴 4. กรองข้อมูลงานตาม สถานะ + คำค้นหา
   const filteredTasks = tasks.filter(item => {
+    // กรองสถานะ
+    let statusMatch = true;
     if (filterStatus === 'active') {
-      return item.status !== 'COMPLETED'; // งานที่กำลังดำเนินการ
+      statusMatch = item.status !== 'COMPLETED';
     } else if (filterStatus === 'completed') {
-      return item.status === 'COMPLETED'; // งานที่เสร็จสิ้นแล้ว
-    } else {
-      return true; // แสดงทั้งหมด
+      statusMatch = item.status === 'COMPLETED';
     }
+
+    // กรองคำค้นหา
+    let searchMatch = true;
+    if (searchTerm.trim() !== '') {
+      const keyword = searchTerm.toLowerCase();
+      searchMatch = 
+        (item.name && item.name.toLowerCase().includes(keyword)) ||
+        (item.customer && item.customer.toLowerCase().includes(keyword)) ||
+        (String(item.id).includes(keyword));
+    }
+
+    return statusMatch && searchMatch;
   });
+
+  // 🔴 5. ฟังก์ชันสำหรับล้างการค้นหา
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    navigate('/myprojects', { replace: true, state: {} });
+  };
 
   return (
     <Layout>
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
 
         {/* หัวข้อและ Dropdown เลือกสถานะ */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-          <h2 className="text-2xl font-bold text-gray-800">
-            งานของฉัน
-          </h2>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-4">
+          
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">
+              งานของฉัน
+            </h2>
+            {/* 🔴 6. แสดงข้อความผลการค้นหา และปุ่มล้างคำค้นหา */}
+            {searchTerm && (
+              <div className="mt-2 text-sm text-gray-600 flex items-center gap-2">
+                ผลการค้นหา: <span className="font-bold text-[#188BFE]">"{searchTerm}"</span>
+                <button 
+                  onClick={handleClearSearch}
+                  className="text-red-500 hover:text-red-700 hover:underline text-xs font-semibold px-2"
+                >
+                  (ล้างการค้นหา)
+                </button>
+              </div>
+            )}
+          </div>
 
-          {/* 🔴 Dropdown สลับมุมมองให้เหมือนกับหน้าโครงการทั้งหมด */}
+          {/* Dropdown สลับมุมมอง */}
           <div className="relative">
             <select
               value={filterStatus}
@@ -76,6 +120,7 @@ function MyProjects() {
             >
               <option value="active">งานที่กำลังดำเนินการ</option>
               <option value="completed">งานที่ดำเนินการสำเร็จ</option>
+              <option value="all">งานของฉันทั้งหมด</option>
             </select>
           </div>
         </div>

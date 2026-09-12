@@ -58,10 +58,16 @@ function Layout({ children, hideSidebar = false }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSearch = (e) => {
+ const handleSearch = (e) => {
     if (e.key === 'Enter' || e.type === 'click') {
       if (searchQuery.trim() !== '') {
-        navigate('/projects', { state: { searchKeyword: searchQuery } });
+        // 🔴 เช็คว่าถ้าอยู่หน้า "งานของฉัน" ให้ค้นหาในหน้านี้เลย
+        if (location.pathname.toLowerCase() === '/myprojects') {
+          navigate('/myprojects', { state: { searchKeyword: searchQuery } });
+        } else {
+          // ถ้าอยู่หน้าอื่น ให้เด้งไปหน้า "โครงการทั้งหมด"
+          navigate('/projects', { state: { searchKeyword: searchQuery } });
+        }
         setSearchQuery('');
       }
     }
