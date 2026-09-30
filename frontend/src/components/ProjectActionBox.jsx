@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCircle2, Clock } from 'lucide-react';
 
 export default function ProjectActionBox({ user, project, tracking = [], handleAction }) {
-    if (!user || !project) return null;
 
     const [selectedDept, setSelectedDept] = useState('');
     const [members, setMembers] = useState([]);
@@ -45,7 +44,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
 
     // ดึงรายชื่อพนักงานเมื่อเลือกแผนก Interior (สำหรับ Admin)
     useEffect(() => {
-        if (!selectedDept || selectedDept === 'Pricing') {
+        if (selectedDept !== 'Interior' && selectedDept !== 'Interior 3D') {
             setMembers([]);
             return;
         }
@@ -53,7 +52,8 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
         const fetchMembersByDept = async () => {
             setLoadingMembers(true);
             try {
-                const res = await fetch(`http://localhost:5000/users/by-role/${selectedDept}`);
+                const roleToFetch = selectedDept === 'Interior 3D' ? 'Interior': selectedDept;
+                const res = await fetch(`http://localhost:5000/users/by-role/${roleToFetch}`);
                 const data = await res.json();
                 if (Array.isArray(data)) {
                     setMembers(data);
@@ -74,14 +74,19 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
     const handleAssignClick = () => {
         if (!selectedDept) return;
 
-        if (selectedDept === 'Interior' && !selectedMemberId) {
+        // Interior และ Interior 3D ต้องเลือกผู้รับผิดชอบก่อน
+        if ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId) {
             setIsModalOpen(true);
             return;
         }
 
+        // ส่ง action เดิมไป Backend ก่อน
+        // Backend จะเป็นผู้ map department -> status
         handleAction('ASSIGN', {
             department: selectedDept,
-            memberId: selectedDept === 'Interior' ? selectedMemberId : null
+            memberId: (selectedDept === 'Interior' || selectedDept === 'Interior 3D')
+                ? selectedMemberId
+                : null
         });
     };
 
@@ -95,49 +100,69 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
 
         setIsModalOpen(false);
     };
+    
+    if (!user || !project) return null;
 
     return (
         <div className="bg-white p-6 rounded-3xl space-y-4 relative">
 
             {/* 1. รูปแบบสำหรับ ADMIN */}
             {isAdmin ? (
+                /* 1. รูปแบบสำหรับ ADMIN */
                 <div className="space-y-4">
-                    {!selectedMemberName ? (
-                        <select
-                            value={selectedDept}
-                            onChange={(e) => {
-                                const dept = e.target.value;
-                                setSelectedDept(dept);
-                                if (dept === 'Interior') {
-                                    setIsModalOpen(true);
-                                } else {
-                                    setSelectedMemberId('');
-                                    setSelectedMemberName('');
-                                }
-                            }}
-                            disabled={isProjectCompleted}
-                            className={`w-full border rounded-lg p-2.5 text-sm outline-none bg-white focus:border-blue-500 cursor-pointer ${isProjectCompleted ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed' : 'border-gray-300 text-gray-700'
-                                }`}
-                        >
-                            <option value="">เลือกแผนกที่ต้องการมอบหมายงาน</option>
-                            <option value="Interior">Interior</option>
-                            <option value="Pricing">Pricing</option>
-                        </select>
-                    ) : (
+                    {/* Dropdown เลือกขั้นตอน/แผนกที่ต้องการมอบหมาย */}
+                    <select
+                        value={selectedDept}
+                        onChange={(e) => {
+                            const dept = e.target.value;
+
+                            // เปลี่ยนตัวเลือกใหม่ -> ล้าง User ที่เลือกไว้ก่อนหน้า
+                            setSelectedDept(dept);
+                            setSelectedMemberId('');
+                            setSelectedMemberName('');
+
+                            // Interior และ Interior 3D ต้องเลือกผู้รับผิดชอบ
+                            if (dept === 'Interior' || dept === 'Interior 3D') {
+                                setIsModalOpen(true);
+                            }
+                        }}
+                        disabled={isProjectCompleted}
+                        className={`w-full border rounded-lg p-2.5 text-sm outline-none bg-white focus:border-blue-500 cursor-pointer ${isProjectCompleted
+                            ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+                            : 'border-gray-300 text-gray-700'
+                            }`}
+                    >
+                        <option value="">เลือกแผนกที่ต้องการมอบหมายงาน</option>
+                        <option value="Project Director">Project Director</option>
+                        <option value="Interior">Interior</option>
+                        <option value="Pricing">Pricing</option>
+                        <option value="Interior 3D">Interior 3D</option>
+                        <option value="COMPLETED">เสร็จสิ้นโครงการ</option>
+                    </select>
+
+                    {/* แสดง User ที่เลือกสำหรับ Interior / Interior 3D */}
+                    {(selectedDept === 'Interior' || selectedDept === 'Interior 3D') && selectedMemberName && (
                         <div
                             onClick={() => !isProjectCompleted && setIsModalOpen(true)}
-                            className={`w-full border rounded-lg p-2.5 text-sm font-semibold flex justify-between items-center transition-colors shadow-sm ${isProjectCompleted ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-blue-500 bg-blue-50/60 text-blue-900 cursor-pointer hover:bg-blue-100'
+                            className={`w-full border rounded-lg p-2.5 text-sm font-semibold flex justify-between items-center transition-colors shadow-sm ${isProjectCompleted
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'border-blue-500 bg-blue-50/60 text-blue-900 cursor-pointer hover:bg-blue-100'
                                 }`}
                         >
                             <div className="flex items-center space-x-2">
-                                <span className={`text-xs px-2 py-0.5 rounded text-white ${isProjectCompleted ? 'bg-gray-400' : 'bg-blue-600'}`}>Interior</span>
+                                <span className={`text-xs px-2 py-0.5 rounded text-white ${isProjectCompleted ? 'bg-gray-400' : 'bg-blue-600'}`}>
+                                    {selectedDept}
+                                </span>
                                 <span>{selectedMemberName}</span>
                             </div>
-                            {!isProjectCompleted && <span className="text-xs text-blue-600 underline">เปลี่ยนคน</span>}
+                            {!isProjectCompleted && (
+                                <span className="text-xs text-blue-600 underline">เปลี่ยนคน</span>
+                            )}
                         </div>
                     )}
 
-                    {selectedMemberName && !isProjectCompleted && (
+                    {/* ปุ่มยกเลิกการเลือก */}
+                    {selectedDept && !isProjectCompleted && (
                         <button
                             onClick={() => {
                                 setSelectedDept('');
@@ -146,28 +171,20 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                             }}
                             className="text-xs text-gray-500 hover:text-red-600 transition-colors text-left block -mt-2"
                         >
-                            ✕ ยกเลิกการเลือกแผนกนี้
+                            ✕ ยกเลิกการเลือก
                         </button>
                     )}
 
+                    {/* ปุ่มมอบหมาย / เปลี่ยนสถานะ */}
                     <button
                         onClick={handleAssignClick}
-                        disabled={isProjectCompleted || !selectedDept || (selectedDept === 'Interior' && !selectedMemberId)}
-                        className={`w-full py-2.5 rounded-xl font-bold transition-colors shadow-sm text-white ${isProjectCompleted || !selectedDept || (selectedDept === 'Interior' && !selectedMemberId)
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                : 'bg-[#188BFE] hover:bg-blue-600'
+                        disabled={isProjectCompleted || !selectedDept || ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)}
+                        className={`w-full py-2.5 rounded-xl font-bold transition-colors shadow-sm text-white ${isProjectCompleted || !selectedDept || ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#188BFE] hover:bg-blue-600'
                             }`}
                     >
-                        มอบหมายงาน
-                    </button>
-
-                    <button
-                        onClick={() => handleAction('COMPLETE')}
-                        disabled={isProjectCompleted}
-                        className={`w-full py-2.5 rounded-xl font-bold transition-colors shadow-sm text-white ${isProjectCompleted ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#22C55E] hover:bg-green-600'
-                            }`}
-                    >
-                        เสร็จสิ้นโครงการ
+                        {selectedDept === 'COMPLETED' ? 'เสร็จสิ้นโครงการ' : 'มอบหมายงาน'}
                     </button>
                 </div>
             ) : isProjectDirector ? (
@@ -183,12 +200,15 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                             // 🔴 แก้ไข onClick ตรงนี้
                             onClick={() => {
                                 // เช็คว่าปัจจุบันผ่านแผนกไหนมาแล้วบ้าง เพื่อตีกลับไปให้ถูกแผนก
-                                const hasPricing = tracking.some(t => t.department === 'Pricing');
-                                const has3D = tracking.some(t => t.status === 'START_3D');
-
+                                const lastSubmit = [...tracking]
+                                    .reverse()
+                                    .find(t => t.status === 'SEND_TO_PROJECTDIRECTOR');
                                 let rollbackTo = 'INTERIOR';
-                                if (has3D) rollbackTo = 'DESIGN_3D';
-                                else if (hasPricing) rollbackTo = 'PRICING';
+                                if (lastSubmit?.department === 'Pricing') {
+                                    rollbackTo = 'PRICING';
+                                } else if (lastSubmit?.department === 'Interior') {
+                                    rollbackTo = 'INTERIOR';
+                                }
 
                                 // ส่ง Action พร้อมแนบชื่อสถานะเป้าหมายไปให้ Backend
                                 handleAction('REVISE', { department: rollbackTo });
@@ -205,8 +225,13 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
 
                     <div className={`p-4 border rounded-xl space-y-2.5 ${isProjectCompleted ? 'bg-gray-50 border-gray-200' : 'bg-[#E8F8EE] border-[#BCEED0]'}`}>
                         {(() => {
-                            const hasPricing = tracking.some(t => t.department === 'Pricing');
-                            const has3D = tracking.some(t => t.status === 'START_3D');
+                            const latestSubmit = [...tracking] // หาว่างานที่ส่งมาตรวจล่าสุดมาจากแผนกไหน
+                                .reverse()
+                                .find(t => t.status === 'SEND_TO_PROJECTDIRECTOR');
+                            const latestDepartment = latestSubmit?.department; 
+                            const has3D = tracking.some(t => t.status === 'START_3D'); // ใช้ดูว่าผ่าน 3D หรือยัง
+                            const fromPricing = latestDepartment === 'Pricing'; // ถ้าล่าสุดมาจาก Pricing แปลว่า Admin / PD กำลังตรวจงาน
+                            const fromInterior = latestDepartment === 'Interior'; // ถ้าล่าสุดมาจาก Interior แปลว่า PD กำลังตรวจงาน
 
                             return (
                                 <>
@@ -219,7 +244,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                         </p>
                                     </div>
 
-                                    {project.status === 'WAITING_CONFIRM' && hasPricing && !has3D && !isProjectCompleted && (
+                                    {project.status === 'WAITING_CONFIRM' && fromPricing && !has3D && !isProjectCompleted && (
                                         <div className="space-y-1">
                                             <label className="text-xs font-semibold text-gray-700">เลือกพนักงานทำ 3D:</label>
                                             <select
@@ -227,7 +252,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                                 onChange={(e) => setSelected3DMemberId(e.target.value)}
                                                 className="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white text-gray-800 outline-none focus:border-green-500"
                                             >
-                                                <option value="">-- เลือกพนักงาน Interior --</option>
+                                                <option value=""> เลือกพนักงาน Interior </option>
                                                 {interiorMembers.map((m) => (
                                                     <option key={m.id_users || m.id_user || m.id} value={m.id_users || m.id_user || m.id}>
                                                         {m.name || m.username}
@@ -241,18 +266,21 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                         onClick={() => {
                                             if (has3D) {
                                                 handleAction('COMPLETE');
-                                            } else if (hasPricing) {
+                                            } else if (fromPricing) {
                                                 handleAction('NEXT_STEP', { department: 'Interior', memberId: selected3DMemberId });
-                                            } else {
+                                            } else if (fromInterior) {
                                                 handleAction('NEXT_STEP');
                                             }
                                         }}
                                         disabled={
                                             isProjectCompleted ||
                                             project.status !== 'WAITING_CONFIRM' ||
-                                            (hasPricing && !has3D && !selected3DMemberId)
+                                            (fromPricing && !has3D && !selected3DMemberId)
                                         }
-                                        className={`w-full py-2 rounded-xl font-bold text-base transition-colors shadow-sm text-white ${isProjectCompleted || project.status !== 'WAITING_CONFIRM' || (hasPricing && !has3D && !selected3DMemberId)
+                                        className={`w-full py-2 rounded-xl font-bold text-base transition-colors shadow-sm text-white ${
+                                            isProjectCompleted ||
+                                            project.status !== 'WAITING_CONFIRM' ||
+                                            (fromPricing && !has3D && !selected3DMemberId)
                                                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                                 : 'bg-[#65C100] hover:bg-green-600'
                                             }`}
@@ -276,28 +304,15 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                     const hasInteriorStarted = tracking.some(t => t.status === 'START_INTERIOR');
                     const hasPricingStarted = tracking.some(t => t.status === 'START_PRICING');
 
-                    const latestTracking = tracking.length > 0 ? tracking[tracking.length - 1].status : '';
-                    const isJustRevised = latestTracking === 'REQUEST_REVISION';
+                    const canReceiveWork = (user.role === 'Interior' && (project.status === 'NEW' || isInteriorStage) && isMyAssignedTask) ||
+                        (user.role === 'Pricing' && isPricingStage && (!project.assign_to || isMyAssignedTask)) ||
+                        (user.role === 'Interior' && is3DStage && isMyAssignedTask);
 
                     // 🔴 1. เช็คว่างานนี้เป็นของคนอื่นไปแล้วใช่หรือไม่ (มีคนรับงานแล้วและไม่ใช่เรา)
                     const isAssignedToSomeoneElse = Boolean(project.assign_to) && !isMyAssignedTask;
 
                     // 🔴 2. ปรับ Logic การเคลียร์สถานะรับงาน เมื่อโดนตีกลับ
-                    let isClaimed = false;
-                    
-                    if (project.status === 'NEW') {
-                        isClaimed = false;
-                    } else if (isJustRevised) {
-                        // ถ้าโดนตีกลับมาให้แก้ "เฉพาะเจ้าของงาน" เท่านั้นที่จะได้ปุ่มรับงานกลับมาใหม่
-                        isClaimed = !isMyAssignedTask; 
-                    } else {
-                        if (user.role === 'Pricing') {
-                            isClaimed = hasPricingStarted || Boolean(project.assign_to);
-                        } else {
-                            isClaimed = is3DStage ? has3DStarted : hasInteriorStarted;
-                        }
-                    }
-
+                    const isClaimed = Boolean(project.accepted_at);
                     return (
                         <div className="space-y-4 -mt-4 -mb-4">
                             {/* --- ปุ่มรับงาน --- */}
@@ -310,24 +325,24 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                     onClick={() => {
                                         if (user.role === 'Pricing') {
                                             handleAction('CLAIM_PRICING');
-                                        } else {
-                                            if (is3DStage) {
+                                        } else if (is3DStage) {
                                                 handleAction('START_3D_WORK');
                                             } else {
                                                 handleAction('START_WORK');
                                             }
-                                        }
                                     }}
                                     // 🔴 3. เพิ่มเงื่อนไขล็อคปุ่ม ถ้างานนี้เป็นของคนอื่น (isAssignedToSomeoneElse)
-                                    disabled={isProjectCompleted || isAssignedToSomeoneElse || (!isMyAssignedTask && user.role !== 'Pricing') || isClaimed}
+                                    disabled={isProjectCompleted ||
+                                        !canReceiveWork ||
+                                        isClaimed}
                                     className={`w-full py-2 rounded-xl font-bold text-base transition-colors shadow-sm text-white ${
-                                        isProjectCompleted || isAssignedToSomeoneElse || (!isMyAssignedTask && user.role !== 'Pricing') || isClaimed
+                                        isProjectCompleted || !canReceiveWork || isClaimed
                                             ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                             : 'bg-[#4862FC] hover:bg-[#3B50E0]'
                                     }`}
                                 >
                                     {/* 🔴 4. เปลี่ยนข้อความปุ่มให้รู้ว่าเป็นงานของคนอื่น */}
-                                    {isAssignedToSomeoneElse ? 'งานของผู้อื่น' : (isClaimed ? 'รับงานแล้ว' : 'รับงานนี้')}
+                                    {isClaimed ? 'รับงานแล้ว' : 'รับงานนี้'}
                                 </button>
                             </div>
 
@@ -364,14 +379,14 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                     );
                 })()
             )}
-
+    
             {/* --- Modal ป๊อปอัปเลือกผู้รับผิดชอบ Interior --- */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white w-full max-w-lg p-6 rounded-2xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
 
                         <h3 className="text-xl font-bold text-gray-900">
-                            เลือกผู้รับผิดชอบ Interior
+                            เลือกผู้รับผิดชอบ {selectedDept === 'Interior 3D' ? 'Interior 3D' : 'Interior'}
                         </h3>
 
                         <div className="space-y-3 max-h-60 overflow-y-auto">
