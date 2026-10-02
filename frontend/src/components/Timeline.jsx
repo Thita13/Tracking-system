@@ -26,158 +26,17 @@ export default function Timeline({ project, tracking }) {
         }
     ];
 
-    // --------------------------------------------------
-    // เรียง Tracking จากเก่า → ใหม่
-    // --------------------------------------------------
+    // เรียง Tracking จากเก่าไปใหม่
     const sortedTracking = [...(tracking || [])].sort(
         (a, b) =>
             new Date(a.action_at).getTime() -
             new Date(b.action_at).getTime()
     );
 
-    // --------------------------------------------------
-    // หา Revision ล่าสุด
-    //
-    // REQUEST_REVISION = Project Director ส่งกลับแก้
-    //
-    // หมายเหตุ:
-    // Admin ไม่มี ADMIN_REVISE แล้ว
-    // เพราะ Admin ใช้ปุ่ม "มอบหมายงาน" ในการส่งกลับ
-    // --------------------------------------------------
-    const latestRevision = [...sortedTracking]
-        .reverse()
-        .find(t => t.status === 'REQUEST_REVISION');
-
-    const revisionTarget = latestRevision?.department || null;
-
-    // --------------------------------------------------
-    // Tracking หลัง Revision ล่าสุด
-    //
-    // ใช้ดูว่า หลังจากถูกส่งกลับมาแก้แล้ว
-    // มีการส่งงานกลับไปตรวจอีกครั้งหรือยัง
-    // --------------------------------------------------
-    const currentRoundTracking = latestRevision
-        ? sortedTracking.filter(
-            t =>
-                new Date(t.action_at).getTime() >
-                new Date(latestRevision.action_at).getTime()
-        )
-        : sortedTracking;
-
-    // --------------------------------------------------
-    // Helper
-    // --------------------------------------------------
-
-    const hasTracking = (status, department = null) => {
-        return sortedTracking.some(t => {
-            if (t.status !== status) return false;
-
-            if (department) {
-                return t.department === department;
-            }
-
-            return true;
-        });
-    };
-
-    const hasCurrentRoundTracking = (
-        status,
-        department = null
-    ) => {
-        return currentRoundTracking.some(t => {
-            if (t.status !== status) return false;
-
-            if (department) {
-                return t.department === department;
-            }
-
-            return true;
-        });
-    };
-
-    // --------------------------------------------------
-    // ประวัติการส่งงาน
-    // --------------------------------------------------
-
-    const hasInteriorSubmitted =
-        hasTracking(
-            'SEND_TO_PROJECTDIRECTOR',
-            'Interior'
-        );
-
-    const hasPricingSubmitted =
-        hasTracking(
-            'SEND_TO_PROJECTDIRECTOR',
-            'Pricing'
-        );
-
-    const has3DCompleted =
-        hasTracking('COMPLETE');
-
-    // --------------------------------------------------
-    // ประวัติการรับงาน
-    // --------------------------------------------------
-
-    const hasInteriorStarted =
-        hasTracking('START_INTERIOR');
-
-    const hasPricingStarted =
-        hasTracking('START_PRICING');
-
-    const has3DStarted =
-        hasTracking('START_3D');
-
-    // --------------------------------------------------
-    // ประวัติการส่งไปแต่ละขั้น
-    // --------------------------------------------------
-
-    const hasSentToPricing =
-        hasTracking('SEND_TO_PRICING');
-
-    const hasSentTo3D =
-        hasTracking('SEND_TO_3D');
-
-    // --------------------------------------------------
-    // ตรวจว่าแต่ละขั้นเป็น Revision Target หรือไม่
-    // --------------------------------------------------
-
-    const interiorIsRevisionTarget =
-        revisionTarget === 'Interior';
-
-    const pricingIsRevisionTarget =
-        revisionTarget === 'Pricing';
-
-    const threeDIsRevisionTarget =
-        revisionTarget === 'DESIGN_3D';
-
-    // --------------------------------------------------
-    // ส่งงานหลัง Revision แล้วหรือยัง
-    // --------------------------------------------------
-
-    const interiorSubmittedAfterRevision =
-        hasCurrentRoundTracking(
-            'SEND_TO_PROJECTDIRECTOR',
-            'Interior'
-        );
-
-    const pricingSubmittedAfterRevision =
-        hasCurrentRoundTracking(
-            'SEND_TO_PROJECTDIRECTOR',
-            'Pricing'
-        );
-
-    const threeDCompletedAfterRevision =
-        hasCurrentRoundTracking('COMPLETE');
-
-    // --------------------------------------------------
-    // ตรวจวันที่ / ประวัติสำหรับแต่ละ Step
-    // --------------------------------------------------
-
+    // ตรวจวันที่/ประวัติสำหรับแต่ละ Step
     const getStepHistory = step => {
 
-        // -----------------------------
         // สร้างโครงการ
-        // -----------------------------
         if (step.key === 'CREATE_TASK') {
             return sortedTracking.filter(
                 t =>
@@ -185,9 +44,7 @@ export default function Timeline({ project, tracking }) {
             );
         }
 
-        // -----------------------------
         // Interior
-        // -----------------------------
         if (step.key === 'SEND_TO_INTERIOR') {
             return sortedTracking.filter(
                 t =>
@@ -199,9 +56,7 @@ export default function Timeline({ project, tracking }) {
             );
         }
 
-        // -----------------------------
         // Pricing
-        // -----------------------------
         if (step.key === 'SEND_TO_PRICING') {
             return sortedTracking.filter(
                 t =>
@@ -213,9 +68,7 @@ export default function Timeline({ project, tracking }) {
             );
         }
 
-        // -----------------------------
         // 3D
-        // -----------------------------
         if (step.key === 'SEND_TO_3D') {
             return sortedTracking.filter(
                 t =>
@@ -227,9 +80,7 @@ export default function Timeline({ project, tracking }) {
         return [];
     };
 
-    // --------------------------------------------------
     // Hover Text
-    // --------------------------------------------------
 
     const getHoverText = (
         status,
@@ -302,18 +153,13 @@ export default function Timeline({ project, tracking }) {
             : text;
     };
 
-    // --------------------------------------------------
     // ตรวจสถานะของแต่ละ Step
-    // --------------------------------------------------
-
     const getStepState = step => {
 
     let isCompleted = false;
     let isCurrent = false;
 
-    // ==================================================
     // STEP 1 : สร้างโครงการ
-    // ==================================================
 
     if (step.key === 'CREATE_TASK') {
 
@@ -323,23 +169,18 @@ export default function Timeline({ project, tracking }) {
         };
     }
 
-    // ==================================================
     // STEP 2 : Interior
-    // ==================================================
 
     if (step.key === 'SEND_TO_INTERIOR') {
-
-        // ----------------------------------------------
         // ตอนนี้งานอยู่ Interior
-        // ----------------------------------------------
         if (project.status === 'INTERIOR') {
 
-            // รับงานแล้ว → สีน้ำเงิน
+            // รับงานแล้วสีน้ำเงิน
             if (Boolean(project.accepted_at)) {
                 isCurrent = true;
             }
 
-            // ยังไม่รับ → สีเทา
+            // ยังไม่รับสีเทา
             else {
                 isCurrent = false;
             }
@@ -350,15 +191,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
-        // งานอยู่ขั้นตอนหลัง Interior
-        // Interior ถือว่าเสร็จแล้ว
-        //
-        // เช่น
-        // PRICING
-        // DESIGN_3D
-        // COMPLETED
-        // ----------------------------------------------
+        // งานอยู่ขั้นตอนหลัง Interior จะถือว่าขั้นตอนที่ 2 เสร็จแล้ว
         if (
             project.status === 'PRICING' ||
             project.status === 'DESIGN_3D' ||
@@ -371,12 +204,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
-        // WAITING_CONFIRM
-        //
-        // ต้องดูว่าใครเป็นคนส่งงานล่าสุด
-        // ----------------------------------------------
-
+        // WAITING_CONFIRM ต้องดูว่าใครเป็นคนส่งงานล่าสุด
         if (project.status === 'WAITING_CONFIRM') {
 
             const latestSubmit = [...sortedTracking]
@@ -390,7 +218,7 @@ export default function Timeline({ project, tracking }) {
                         )
                 );
 
-            // ถ้า Interior เป็นคนส่งล่าสุด
+            // Interior เป็นคนส่งล่าสุด
             if (
                 latestSubmit &&
                 latestSubmit.department === 'Interior'
@@ -401,8 +229,7 @@ export default function Timeline({ project, tracking }) {
                 };
             }
 
-            // ถ้า Pricing เป็นคนส่งล่าสุด
-            // Interior ถือว่าเสร็จแล้วอยู่ดี
+            // ถ้า Pricing เป็นคนส่งล่าสุด ของ Interior จะถือว่าเสร็จแล้ว
             if (
                 latestSubmit &&
                 latestSubmit.department === 'Pricing'
@@ -420,22 +247,11 @@ export default function Timeline({ project, tracking }) {
         };
     }
 
-    // ==================================================
     // STEP 3 : Pricing
-    // ==================================================
 
     if (step.key === 'SEND_TO_PRICING') {
 
-        // ----------------------------------------------
-        // สำคัญมาก
-        //
-        // ถ้าปัจจุบันอยู่ INTERIOR
-        // แปลว่า workflow ถูกส่งกลับไป Interior
-        //
-        // Pricing ต้อง "ย้อนกลับเป็นสีเทา"
-        // แม้จะเคยส่งงานมาก่อน
-        // ----------------------------------------------
-
+        // ถ้าปัจจุบันอยู่ INTERIOR Pricing ต้องเป็นสีเทา ถึงจะเคยส่งงานมาก่อนก็ตาม
         if (project.status === 'INTERIOR') {
 
             return {
@@ -444,10 +260,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
         // ปัจจุบันอยู่ Pricing
-        // ----------------------------------------------
-
         if (project.status === 'PRICING') {
 
             // รับงานแล้ว
@@ -458,7 +271,6 @@ export default function Timeline({ project, tracking }) {
                     isCurrent: true
                 };
             }
-
             // ยังไม่ได้รับ
             return {
                 isCompleted: false,
@@ -466,12 +278,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
-        // ปัจจุบันอยู่ 3D
-        //
-        // แปลว่า Pricing ผ่านแล้ว
-        // ----------------------------------------------
-
+        // ปัจจุบันอยู่ 3D แปลว่า Pricing ผ่านแล้ว
         if (project.status === 'DESIGN_3D') {
 
             return {
@@ -480,10 +287,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
         // โครงการเสร็จแล้ว
-        // ----------------------------------------------
-
         if (project.status === 'COMPLETED') {
 
             return {
@@ -492,10 +296,7 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
         // WAITING_CONFIRM
-        // ----------------------------------------------
-
         if (project.status === 'WAITING_CONFIRM') {
 
             const latestSubmit = [...sortedTracking]
@@ -509,11 +310,7 @@ export default function Timeline({ project, tracking }) {
                         )
                 );
 
-            // ------------------------------------------
-            // ถ้า Pricing เป็นคนส่งงานล่าสุด
-            // Pricing = เสร็จ
-            // ------------------------------------------
-
+            // ถ้า Pricing เป็นคนส่งงานล่าสุด Pricing = เสร็จ
             if (
                 latestSubmit &&
                 latestSubmit.department === 'Pricing'
@@ -525,12 +322,7 @@ export default function Timeline({ project, tracking }) {
                 };
             }
 
-            // ------------------------------------------
-            // ถ้า Interior ส่งงานล่าสุด
-            //
-            // แปลว่ายังไม่ถึง Pricing
-            // ------------------------------------------
-
+            // ถ้า Interior ส่งงานล่าสุดแปลว่ายังไม่ถึง Pricing
             if (
                 latestSubmit &&
                 latestSubmit.department === 'Interior'
@@ -549,19 +341,11 @@ export default function Timeline({ project, tracking }) {
         };
     }
 
-    // ==================================================
     // STEP 4 : 3D
-    // ==================================================
 
     if (step.key === 'SEND_TO_3D') {
 
-        // ----------------------------------------------
-        // ถ้าปัจจุบันย้อนกลับไป Interior
-        // หรือ Pricing
-        //
-        // 3D ต้องเป็นสีเทา
-        // ----------------------------------------------
-
+        // ถ้าปัจจุบันย้อนกลับไป Interior หรือ Pricing ของ 3D ต้องเป็นสีเทา
         if (
             project.status === 'INTERIOR' ||
             project.status === 'PRICING'
@@ -573,13 +357,10 @@ export default function Timeline({ project, tracking }) {
             };
         }
 
-        // ----------------------------------------------
         // ปัจจุบันอยู่ 3D
-        // ----------------------------------------------
-
         if (project.status === 'DESIGN_3D') {
 
-            // รับงานแล้ว น้ำเงิน
+            // รับงานแล้วสีน้ำเงิน
             if (Boolean(project.accepted_at)) {
 
                 return {
@@ -588,7 +369,7 @@ export default function Timeline({ project, tracking }) {
                 };
             }
 
-            // ยังไม่รับ เทา
+            // ยังไม่รับสีเทา
             return {
                 isCompleted: false,
                 isCurrent: false
@@ -847,7 +628,7 @@ export default function Timeline({ project, tracking }) {
                                                             left-1/2
                                                             transform
                                                             -translate-x-1/2
-                                                            border-[4px]
+                                                            border-4
                                                             border-transparent
                                                             border-t-gray-800
                                                         "

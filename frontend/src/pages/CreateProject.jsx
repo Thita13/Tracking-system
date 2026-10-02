@@ -51,7 +51,7 @@ function CreateProject() {
   };
 
   const handleSubmit = async () => {
-    // 🔴 1. ตรวจสอบว่ากรอกข้อมูลสำคัญครบหรือไม่
+    // 1. ตรวจสอบว่ากรอกข้อมูลสำคัญครบหรือไม่
     if (
         !formData.projectName.trim() || 
         !formData.projectType || 
@@ -62,7 +62,7 @@ function CreateProject() {
       return;
     }
 
-    // 🔴 2. ตรวจสอบเบอร์โทรศัพท์ (กฎเดียวกับหน้าเพิ่มผู้ใช้)
+    // 2. ตรวจสอบเบอร์โทรศัพท์ (กฎเดียวกับหน้าเพิ่มผู้ใช้)
     const phoneRegex = /^0\d{8,9}$/;
     if (!formData.customerPhone || !phoneRegex.test(formData.customerPhone)) {
         toast.error('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ต้องขึ้นต้นด้วย 0 และมี 9-10 หลักเท่านั้น)');
@@ -162,10 +162,10 @@ function CreateProject() {
             <input
               type="tel"
               name="customerPhone"
-              maxLength={10} // 🔴 บังคับพิมพ์ไม่เกิน 10 ตัว
+              maxLength={10} // บังคับพิมพ์ไม่เกิน 10 ตัว
               value={formData.customerPhone}
               onChange={(e) => {
-                // 🔴 กรองให้รับเฉพาะตัวเลขเท่านั้น
+                // กรองให้รับเฉพาะตัวเลขเท่านั้น
                 const numericValue = e.target.value.replace(/\D/g, '');
                 if (numericValue.length <= 10) {
                     setFormData((prev) => ({ ...prev, customerPhone: numericValue }));

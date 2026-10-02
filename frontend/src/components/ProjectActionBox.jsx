@@ -21,7 +21,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
 
     const isMyAssignedTask = String(project.assign_to) === String(user.id);
 
-    // 🔴 เช็คว่าโปรเจกต์อยู่ในสถานะ COMPLETED หรือไม่
+    // เช็คว่าโปรเจกต์อยู่ในสถานะ COMPLETED หรือไม่
     const isProjectCompleted = project.status === 'COMPLETED';
 
     // ดึงรายชื่อพนักงาน Interior สำหรับ PD เมื่อโปรเจกต์อยู่ในสถานะรอส่งไป 3D
@@ -108,60 +108,140 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
 
             {/* 1. รูปแบบสำหรับ ADMIN */}
             {isAdmin ? (
-                /* 1. รูปแบบสำหรับ ADMIN */
                 <div className="space-y-4">
-                    {/* Dropdown เลือกขั้นตอน/แผนกที่ต้องการมอบหมาย */}
-                    <select
-                        value={selectedDept}
-                        onChange={(e) => {
-                            const dept = e.target.value;
+                    {/* STEP 1: เลือกแผนก */}
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                            เลือกแผนกที่ต้องการมอบหมายงาน
+                        </label>
 
-                            // เปลี่ยนตัวเลือกใหม่ -> ล้าง User ที่เลือกไว้ก่อนหน้า
-                            setSelectedDept(dept);
-                            setSelectedMemberId('');
-                            setSelectedMemberName('');
+                        <select
+                            value={selectedDept}
+                            onChange={(e) => {
+                                const dept = e.target.value;
 
-                            // Interior และ Interior 3D ต้องเลือกผู้รับผิดชอบ
-                            if (dept === 'Interior' || dept === 'Interior 3D') {
-                                setIsModalOpen(true);
-                            }
-                        }}
-                        disabled={isProjectCompleted}
-                        className={`w-full border rounded-lg p-2.5 text-sm outline-none bg-white focus:border-blue-500 cursor-pointer ${isProjectCompleted
-                            ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
-                            : 'border-gray-300 text-gray-700'
-                            }`}
-                    >
-                        <option value="">เลือกแผนกที่ต้องการมอบหมายงาน</option>
-                        <option value="Project Director">Project Director</option>
-                        <option value="Interior">Interior</option>
-                        <option value="Pricing">Pricing</option>
-                        <option value="Interior 3D">Interior 3D</option>
-                        <option value="COMPLETED">เสร็จสิ้นโครงการ</option>
-                    </select>
-
-                    {/* แสดง User ที่เลือกสำหรับ Interior / Interior 3D */}
-                    {(selectedDept === 'Interior' || selectedDept === 'Interior 3D') && selectedMemberName && (
-                        <div
-                            onClick={() => !isProjectCompleted && setIsModalOpen(true)}
-                            className={`w-full border rounded-lg p-2.5 text-sm font-semibold flex justify-between items-center transition-colors shadow-sm ${isProjectCompleted
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'border-blue-500 bg-blue-50/60 text-blue-900 cursor-pointer hover:bg-blue-100'
+                                // เปลี่ยนแผนก = ล้างผู้รับผิดชอบเดิม
+                                setSelectedDept(dept);
+                                setSelectedMemberId('');
+                                setSelectedMemberName('');
+                            }}
+                            disabled={isProjectCompleted}
+                            className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all bg-white
+                                ${isProjectCompleted
+                                    ? 'border-gray-200 text-gray-400 bg-gray-50'
+                                    : 'border-gray-300 text-gray-800 hover:border-blue-400 focus:border-blue-500 focus:ring'
                                 }`}
                         >
-                            <div className="flex items-center space-x-2">
-                                <span className={`text-xs px-2 py-0.5 rounded text-white ${isProjectCompleted ? 'bg-gray-400' : 'bg-blue-600'}`}>
-                                    {selectedDept}
-                                </span>
-                                <span>{selectedMemberName}</span>
-                            </div>
-                            {!isProjectCompleted && (
-                                <span className="text-xs text-blue-600 underline">เปลี่ยนคน</span>
+                            <option value="">เลือกแผนกที่ต้องการมอบหมายงาน</option>
+                            <option value="Project Director">Project Director</option>
+                            <option value="Interior">Interior</option>
+                            <option value="Pricing">Pricing</option>
+                            <option value="Interior 3D">Interior 3D</option>
+                            <option value="COMPLETED">เสร็จสิ้นโครงการ</option>
+                        </select>
+                    </div>
+
+                    {/* STEP 2: เลือกผู้รับผิดชอบ */}
+                    {(selectedDept === 'Interior' || selectedDept === 'Interior 3D') && (
+                        <div className="space-y-2">
+
+                            <label className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                                เลือกผู้รับผิดชอบ
+                            </label>
+
+                            {selectedMemberId ? (
+
+                                /* มีคนถูกเลือกแล้ว */
+                                <div
+                                    className={`w-full border rounded-xl px-4 py-3 text-sm flex items-center justify-between
+                                        ${
+                                            isProjectCompleted
+                                                ? 'border-gray-200 text-gray-400 bg-gray-50'
+                                                : 'border-gray-300 text-gray-800'
+                                        }
+                                    `}
+                                >
+                                    <span className="font-semibold">
+                                        {selectedMemberName || 'กำลังโหลด...'}
+                                    </span>
+
+                                    {!isProjectCompleted && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedMemberId('');
+                                                setSelectedMemberName('');
+                                            }}
+                                            className="text-sm text-gray-500 hover:text-blue-600 transition-colors"
+                                        >
+                                            เปลี่ยน
+                                        </button>
+                                    )}
+                                </div>
+
+                            ) : (
+
+                                /* ยังไม่มีคน → แสดง Dropdown */
+                                <select
+                                    value={selectedMemberId}
+                                    onChange={(e) => {
+                                        const id = e.target.value;
+
+                                        setSelectedMemberId(id);
+
+                                        const selectedMember = members.find(
+                                            (member) =>
+                                                String(
+                                                    member.id_users ||
+                                                    member.id_user ||
+                                                    member.id
+                                                ) === String(id)
+                                        );
+
+                                        setSelectedMemberName(
+                                            selectedMember?.name ||
+                                            selectedMember?.username ||
+                                            ''
+                                        );
+                                    }}
+                                    disabled={isProjectCompleted || loadingMembers}
+                                    className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all bg-white
+                                        ${
+                                            isProjectCompleted
+                                                ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed'
+                                                : 'border-gray-300 text-gray-700 hover:border-violet-400 focus:border-violet-500 focus:ring'
+                                        }
+                                    `}
+                                >
+                                    <option value="">
+                                        {loadingMembers
+                                            ? 'กำลังโหลดรายชื่อ...'
+                                            : `เลือกพนักงาน ${selectedDept}`}
+                                    </option>
+
+                                    {members.map((member) => {
+                                        const id =
+                                            member.id_users ||
+                                            member.id_user ||
+                                            member.id;
+
+                                        const name =
+                                            member.name ||
+                                            member.username;
+
+                                        return (
+                                            <option key={id} value={id}>
+                                                {name}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
                             )}
+
                         </div>
                     )}
 
-                    {/* ปุ่มยกเลิกการเลือก */}
+                    {/* ปุ่มยกเลิก */}
                     {selectedDept && !isProjectCompleted && (
                         <button
                             onClick={() => {
@@ -169,7 +249,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                 setSelectedMemberId('');
                                 setSelectedMemberName('');
                             }}
-                            className="text-xs text-gray-500 hover:text-red-600 transition-colors text-left block -mt-2"
+                            className="text-xs text-gray-500 hover:text-red-600 transition-colors text-left block"
                         >
                             ✕ ยกเลิกการเลือก
                         </button>
@@ -178,13 +258,20 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                     {/* ปุ่มมอบหมาย / เปลี่ยนสถานะ */}
                     <button
                         onClick={handleAssignClick}
-                        disabled={isProjectCompleted || !selectedDept || ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)}
-                        className={`w-full py-2.5 rounded-xl font-bold transition-colors shadow-sm text-white ${isProjectCompleted || !selectedDept || ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)
-                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                            : 'bg-[#188BFE] hover:bg-blue-600'
-                            }`}
+                        disabled={
+                            isProjectCompleted ||
+                            !selectedDept ||
+                            ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)
+                        }
+                        className={`w-full py-3 rounded-xl font-bold transition-all shadow-sm text-white ${
+                            isProjectCompleted ||
+                            !selectedDept ||
+                            ((selectedDept === 'Interior' || selectedDept === 'Interior 3D') && !selectedMemberId)
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                : 'bg-[#3578ee] hover:bg-blue-600 hover:shadow-md'
+                        }`}
                     >
-                        {selectedDept === 'COMPLETED' ? 'เสร็จสิ้นโครงการ' : 'มอบหมายงาน'}
+                        {selectedDept === 'COMPLETED' ? '✓ เสร็จสิ้นโครงการ' : 'มอบหมายงาน'}
                     </button>
                 </div>
             ) : isProjectDirector ? (
@@ -197,7 +284,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                             <p className={`text-xs ${isProjectCompleted ? 'text-gray-400' : 'text-gray-600'}`}>มอบหมายให้ดำเนินการแก้ไข</p>
                         </div>
                         <button
-                            // 🔴 แก้ไข onClick ตรงนี้
+                            // แก้ไข onClick ตรงนี้
                             onClick={() => {
                                 // เช็คว่าปัจจุบันผ่านแผนกไหนมาแล้วบ้าง เพื่อตีกลับไปให้ถูกแผนก
                                 const lastSubmit = [...tracking]
@@ -308,10 +395,10 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                         (user.role === 'Pricing' && isPricingStage && (!project.assign_to || isMyAssignedTask)) ||
                         (user.role === 'Interior' && is3DStage && isMyAssignedTask);
 
-                    // 🔴 1. เช็คว่างานนี้เป็นของคนอื่นไปแล้วใช่หรือไม่ (มีคนรับงานแล้วและไม่ใช่เรา)
+                    // 1. เช็คว่างานนี้เป็นของคนอื่นไปแล้วใช่หรือไม่ (มีคนรับงานแล้วและไม่ใช่เรา)
                     const isAssignedToSomeoneElse = Boolean(project.assign_to) && !isMyAssignedTask;
 
-                    // 🔴 2. ปรับ Logic การเคลียร์สถานะรับงาน เมื่อโดนตีกลับ
+                    // 2. ปรับ Logic การเคลียร์สถานะรับงาน เมื่อโดนตีกลับ
                     const isClaimed = Boolean(project.accepted_at);
                     return (
                         <div className="space-y-4 -mt-4 -mb-4">
@@ -331,7 +418,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                                 handleAction('START_WORK');
                                             }
                                     }}
-                                    // 🔴 3. เพิ่มเงื่อนไขล็อคปุ่ม ถ้างานนี้เป็นของคนอื่น (isAssignedToSomeoneElse)
+                                    // 3. เงื่อนไขล็อคปุ่ม ถ้างานนี้เป็นของคนอื่น (isAssignedToSomeoneElse)
                                     disabled={isProjectCompleted ||
                                         !canReceiveWork ||
                                         isClaimed}
@@ -341,7 +428,7 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                             : 'bg-[#4862FC] hover:bg-[#3B50E0]'
                                     }`}
                                 >
-                                    {/* 🔴 4. เปลี่ยนข้อความปุ่มให้รู้ว่าเป็นงานของคนอื่น */}
+                                    {/* 4. เปลี่ยนข้อความปุ่มให้รู้ว่าเป็นงานของคนอื่น */}
                                     {isClaimed ? 'รับงานแล้ว' : 'รับงานนี้'}
                                 </button>
                             </div>
@@ -379,79 +466,6 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                     );
                 })()
             )}
-    
-            {/* --- Modal ป๊อปอัปเลือกผู้รับผิดชอบ Interior --- */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white w-full max-w-lg p-6 rounded-2xl shadow-2xl space-y-6 animate-in fade-in zoom-in duration-200">
-
-                        <h3 className="text-xl font-bold text-gray-900">
-                            เลือกผู้รับผิดชอบ {selectedDept === 'Interior 3D' ? 'Interior 3D' : 'Interior'}
-                        </h3>
-
-                        <div className="space-y-3 max-h-60 overflow-y-auto">
-                            {loadingMembers ? (
-                                <p className="text-center text-sm text-gray-400 py-4">กำลังโหลดรายชื่อ...</p>
-                            ) : members.length > 0 ? (
-                                members.map((member, index) => {
-                                    const mId = member.id_users || member.id_user || member.id || index;
-                                    const mName = member.name || member.username;
-                                    const isChecked = String(selectedMemberId) === String(mId);
-
-                                    return (
-                                        <label
-                                            key={`member-${mId}-${index}`}
-                                            className={`flex items-center space-x-3 p-4 border rounded-2xl cursor-pointer transition-all ${isChecked
-                                                ? 'border-blue-600 bg-[#2563EB] text-white shadow-md'
-                                                : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="interiorMember"
-                                                value={mId}
-                                                checked={isChecked}
-                                                onChange={(e) => setSelectedMemberId(e.target.value)}
-                                                className="w-4 h-4 text-blue-600 focus:ring-blue-500 accent-white"
-                                            />
-                                            <span className={`text-sm font-semibold ${isChecked ? 'text-white' : 'text-gray-800'}`}>
-                                                {mName}
-                                            </span>
-                                        </label>
-                                    );
-                                })
-                            ) : (
-                                <p className="text-center text-sm text-gray-400 py-4">ไม่พบรายชื่อพนักงานในแผนกนี้</p>
-                            )}
-                        </div>
-
-                        <div className="flex space-x-3 pt-2">
-                            <button
-                                onClick={() => {
-                                    setIsModalOpen(false);
-                                    if (!selectedMemberName) {
-                                        setSelectedDept('');
-                                        setSelectedMemberId('');
-                                    }
-                                }}
-                                className="flex-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 py-2.5 rounded-xl font-bold transition-colors shadow-sm"
-                            >
-                                ยกเลิก
-                            </button>
-                            <button
-                                onClick={handleConfirmAssign}
-                                disabled={!selectedMemberId}
-                                className={`flex-1 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-white ${!selectedMemberId ? 'bg-blue-300 cursor-not-allowed' : 'bg-[#188BFE] hover:bg-blue-600'
-                                    }`}
-                            >
-                                ยืนยันการเลือก
-                            </button>
-                        </div>
-
-                    </div>
-                </div>
-            )}
-
         </div>
     );
 }
