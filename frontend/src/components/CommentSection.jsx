@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom'; // 🔴 1. Import useLocation
+import { useLocation } from 'react-router-dom'; // 1. Import useLocation
 
 export default function CommentSection({ taskId, user, project, tracking }) {
     const [comments, setComments] = useState([]);
@@ -7,8 +7,8 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     const [showInfo, setShowInfo] = useState(false);
     
     const commentContainerRef = useRef(null);
-    const sectionRef = useRef(null); // 🔴 2. สร้าง ref สำหรับคลุมทั้งกล่องคอมเมนต์
-    const location = useLocation(); // 🔴 3. เรียกใช้ location เพื่อเช็ค URL
+    const sectionRef = useRef(null); // 2. สร้าง ref สำหรับคลุมทั้งกล่องคอมเมนต์
+    const location = useLocation(); // 3. เรียกใช้ location เพื่อเช็ค URL
 
     // ===============================================================
     // โลจิกเช็คสิทธิ์การคอมเมนต์

@@ -1145,7 +1145,7 @@ app.post(
             role === 'Admin'
         ) {
 
-            // Admin → Project Director
+            // Admin ส่งไปยัง Project Director
             if (
                 dept === 'Project Director'
             ) {
@@ -1170,7 +1170,7 @@ app.post(
                     'Admin';
             }
 
-            // Admin → Interior
+            // Admin ส่งไปยัง Interior
             else if (
                 dept === 'Interior'
             ) {
@@ -1204,7 +1204,7 @@ app.post(
                     'Admin';
             }
 
-            // Admin → Pricing
+            // Admin ส่งไปยัง Pricing
             else if (
                 dept === 'Pricing'
             ) {
@@ -1229,7 +1229,7 @@ app.post(
                     'Admin';
             }
 
-            // Admin → Interior 3D
+            // Admin ส่งไปยัง Interior 3D
             else if (
                 dept === 'Interior 3D'
             ) {
@@ -1263,7 +1263,7 @@ app.post(
                     'Admin';
             }
 
-            // Admin → เสร็จสิ้นโครงการ
+            // Admin เสร็จสิ้นโครงการ
             else if (
                 dept === 'COMPLETED'
             ) {
@@ -1282,6 +1282,31 @@ app.post(
 
                 trackingStatus =
                     'COMPLETE';
+
+                departmentName =
+                    'Admin';
+            }
+
+            // Admin ยกเลิกโครงการ
+            else if (
+                dept === 'CANCELLED'
+            ) {
+
+                updateTaskSql = `
+                    UPDATE tasks
+                    SET
+                        status = 'CANCELLED',
+                        assign_to = NULL,
+                        accepted_at = NULL
+                    WHERE id_task = ?
+                `;
+
+                updateParams = [
+                    taskId
+                ];
+
+                trackingStatus =
+                    'CANCELLED';
 
                 departmentName =
                     'Admin';
