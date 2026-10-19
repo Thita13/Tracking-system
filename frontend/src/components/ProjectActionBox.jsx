@@ -144,7 +144,6 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                             <option value="Pricing">Pricing</option>
                             <option value="Interior 3D">Interior 3D</option>
                             <option value="COMPLETED">เสร็จสิ้นโครงการ</option>
-                            <option value="CANCELLED">ยกเลิกโครงการ</option>
                         </select>
                     </div>
 
@@ -278,74 +277,8 @@ export default function ProjectActionBox({ user, project, tracking = [], handleA
                                 : 'bg-[#3578ee] hover:bg-blue-600 hover:shadow-md'
                         }`}
                     >
-                        {selectedDept === 'COMPLETED' ? 'เสร็จสิ้นโครงการ' : selectedDept === 'CANCELLED' ? 'ยกเลิกโครงการ' : 'มอบหมายงาน'}
+                        {selectedDept === 'COMPLETED' ? 'เสร็จสิ้นโครงการ' : 'มอบหมายงาน'}
                     </button>
-
-                    {/* Modal ยืนยันยกเลิกโครงการ */}
-                    {isCancelConfirmOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-
-                                {/* ไอคอน */}
-                                <div className="flex justify-center mb-4">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full">
-                                        <span className="text-5xl">⚠️</span>
-                                    </div>
-                                </div>
-
-                                {/* หัวข้อ */}
-                                <h3 className="text-center text-xl font-bold text-gray-900">
-                                    ยืนยันการยกเลิกโครงการ
-                                </h3>
-
-                                {/* รายละเอียด */}
-                                <p className="mt-3 text-center text-sm leading-relaxed text-gray-500">
-                                    คุณต้องการยกเลิกโครงการนี้ใช่หรือไม่?
-                                    <br />
-                                    หลังจากยกเลิกแล้ว โครงการจะไม่สามารถดำเนินงานต่อได้
-                                </p>
-
-                                {/* ปุ่ม */}
-                                <div className="mt-6 flex gap-3">
-
-                                    {/* ไม่ยกเลิก */}
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsCancelConfirmOpen(false)}
-                                        className="flex-1 rounded-xl border border-gray-300
-                                                   bg-white py-3 font-bold text-gray-700
-                                                   transition-colors hover:bg-gray-100"
-                                    >
-                                        ไม่ยกเลิก
-                                    </button>
-
-                                    {/* ยืนยันยกเลิก */}
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsCancelConfirmOpen(false);
-
-                                            handleAction('ASSIGN', {
-                                                department: 'CANCELLED',
-                                                memberId: null,
-                                                targetStatus: 'CANCELLED'
-                                            });
-
-                                            setSelectedDept('');
-                                            setSelectedMemberId('');
-                                            setSelectedMemberName('');
-                                        }}
-                                        className="flex-1 rounded-xl bg-red-500 py-3
-                                                   font-bold text-white transition-colors
-                                                   hover:bg-red-600"
-                                    >
-                                        ยืนยันยกเลิก
-                                    </button>
-
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             ) : isProjectDirector ? (
 

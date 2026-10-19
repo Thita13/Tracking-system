@@ -134,10 +134,10 @@ function CreateProject() {
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">ประเภทโครงการ <span className="text-red-500">*</span></label>
             <div className="flex gap-6">
-              {['home', 'condo'].map((type) => (
-                <label key={type} className="flex items-center space-x-2 cursor-pointer">
-                  <input type="radio" name="task_type" value={type} checked={formData.projectType === type} onChange={handleChange} className="w-4 h-4" />
-                  <span>{type}</span>
+              {[{ value: 'home', label: 'บ้าน' }, { value: 'condo', label: 'คอนโด' }].map((type) => (
+                <label key={type.value} className="flex items-center space-x-2 cursor-pointer">
+                  <input type="radio" name="task_type" value={type.value} checked={formData.projectType === type.value} onChange={handleChange} className="w-4 h-4" />
+                  <span>{type.label}</span>
                 </label>
               ))}
             </div>

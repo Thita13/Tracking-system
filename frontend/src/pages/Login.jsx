@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
-// 🔴 1. นำเข้า Toaster เพิ่มเข้ามาต่อท้าย toast
+//  1. นำเข้า Toaster เพิ่มเข้ามาต่อท้าย toast
 import toast, { Toaster } from 'react-hot-toast'; 
 import { useAuth } from '../context/AuthContext';
 
@@ -34,7 +34,7 @@ function Login() {
       
       if (response.ok) {
         toast.success('เข้าสู่ระบบสำเร็จ'); 
-        // 🔴 เปลี่ยนจาก localStorage เป็น sessionStorage
+        //  เปลี่ยนจาก localStorage เป็น sessionStorage
         sessionStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
         navigate('/dashboard');

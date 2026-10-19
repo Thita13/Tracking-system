@@ -68,7 +68,7 @@ function Profile() {
 
           <div className="flex flex-col items-center justify-center gap-8">
             
-            {/* 🔴 1. ปรับขนาดรูปให้เล็กลง (เปลี่ยนจาก 52 เป็น 32) */}
+            {/* 1. ปรับขนาดรูปให้เล็กลง (เปลี่ยนจาก 52 เป็น 32) */}
             <div className="shrink-0">
               <div className="w-35 h-35 rounded-full bg-blue-100 text-[#188BFE] flex items-center justify-center text-5xl font-bold shadow-sm border-4 border-[#188BFE] -mt-3">
                 {profileData.username?.charAt(0).toUpperCase()}
@@ -77,7 +77,7 @@ function Profile() {
 
             <hr className="w-full border-t border-gray-200" />
 
-            {/* 🔴 2. ขยายกล่องข้อความให้เต็มพื้นที่ (ใช้ w-full อย่างเดียว เพื่อให้กางออกเต็มกรอบการ์ด) */}
+            {/* 2. ขยายกล่องข้อความให้เต็มพื้นที่ (ใช้ w-full อย่างเดียว เพื่อให้กางออกเต็มกรอบการ์ด) */}
             <div className="w-full flex flex-col gap-5">
               
               {/* 1. ชื่อผู้ใช้งาน */}

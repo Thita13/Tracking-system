@@ -92,7 +92,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
 
         let passwordToSave = newPassword;
 
-        // 🔴 4. เช็คว่าอีเมลนี้มีอยู่จริงบนโลกหรือไม่ ก่อนทำการส่งและบันทึก
+        // 4. เช็คว่าอีเมลนี้มีอยู่จริงบนโลกหรือไม่ ก่อนทำการส่งและบันทึก
         if (!isEditing || isEmailChanged) {
             const toastId = toast.loading('กำลังตรวจสอบความถูกต้องของอีเมล...');
 
@@ -106,7 +106,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
                 if (verifyData.deliverability === "UNDELIVERABLE") {
                     toast.dismiss(toastId);
                     toast.error('อีเมลนี้ไม่มีอยู่จริง กรุณาตรวจสอบและกรอกใหม่อีกครั้ง');
-                    return; // 🛑 บล็อกการทำงาน ไม่ให้บันทึกลงฐานข้อมูลและไม่ส่ง EmailJS
+                    return; // บล็อกการทำงาน ไม่ให้บันทึกลงฐานข้อมูลและไม่ส่ง EmailJS
                 }
 
                 if (isEmailChanged) {

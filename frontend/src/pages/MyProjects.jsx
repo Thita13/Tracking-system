@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom'; // 🔴 1. นำเข้า useLocation และ useNavigate
+import { useLocation, useNavigate } from 'react-router-dom'; // 1. นำเข้า useLocation และ useNavigate
 import Layout from '../components/Layout';
 import ProjectTable from '../components/ProjectTable';
 import { useAuth } from '../context/AuthContext';
 
 function MyProjects() {
   const { user } = useAuth();
-  const location = useLocation(); // 🔴 เรียกใช้
-  const navigate = useNavigate(); // 🔴 เรียกใช้
+  const location = useLocation();
+  const navigate = useNavigate(); 
   
   const [tasks, setTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [filterStatus, setFilterStatus] = useState('active');
-  const [searchTerm, setSearchTerm] = useState(''); // 🔴 2. State สำหรับเก็บคำค้นหา
+  const [filterStatus, setFilterStatus] = useState('working');
+  const [searchTerm, setSearchTerm] = useState(''); // 2. State สำหรับเก็บคำค้นหา
 
-  // 🔴 3. ดึงคำค้นหาที่ถูกส่งมาจาก Header
+  // 3. ดึงคำค้นหาที่ถูกส่งมาจาก Header
   useEffect(() => {
     if (location.state?.searchKeyword !== undefined) {
       setSearchTerm(location.state.searchKeyword);
@@ -57,15 +57,17 @@ function MyProjects() {
     }
   }, [user]);
 
-  // 🔴 4. กรองข้อมูลงานตาม สถานะ + คำค้นหา
+  // 4. กรองข้อมูลงานตาม สถานะ + คำค้นหา
   const filteredTasks = tasks.filter(item => {
     // กรองสถานะ
     let statusMatch = true;
-    if (filterStatus === 'active') {
-      statusMatch = item.status !== 'COMPLETED';
-    } else if (filterStatus === 'completed') {
-      statusMatch = item.status === 'COMPLETED';
-    }
+    if (filterStatus === 'working') {
+      statusMatch = ['NEW', 'INTERIOR', 'PRICING', 'DESIGN_3D'].includes(item.status);
+      } else if (filterStatus === 'waiting') {
+          statusMatch = item.status === 'WAITING_CONFIRM';
+      } else if (filterStatus === 'completed') {
+          statusMatch = item.status === 'COMPLETED';
+      }
 
     // กรองคำค้นหา
     let searchMatch = true;
@@ -80,7 +82,7 @@ function MyProjects() {
     return statusMatch && searchMatch;
   });
 
-  // 🔴 5. ฟังก์ชันสำหรับล้างการค้นหา
+  // 5. ฟังก์ชันสำหรับล้างการค้นหา
   const handleClearSearch = () => {
     setSearchTerm('');
     navigate('/myprojects', { replace: true, state: {} });
@@ -97,14 +99,13 @@ function MyProjects() {
             <h2 className="text-2xl font-bold text-gray-800">
               งานของฉัน
             </h2>
-            {/* 🔴 6. แสดงข้อความผลการค้นหา และปุ่มล้างคำค้นหา */}
+            {/* 6. แสดงข้อความผลการค้นหา และปุ่มล้างคำค้นหา */}
             {searchTerm && (
               <div className="mt-2 text-sm text-gray-600 flex items-center gap-2">
                 ผลการค้นหา: <span className="font-bold text-[#188BFE]">"{searchTerm}"</span>
                 <button 
                   onClick={handleClearSearch}
-                  className="text-red-500 hover:text-red-700 hover:underline text-xs font-semibold px-2"
-                >
+                  className="text-red-500 hover:text-red-700 hover:underline text-xs font-semibold px-2">
                   (ล้างการค้นหา)
                 </button>
               </div>
@@ -114,16 +115,15 @@ function MyProjects() {
           {/* Dropdown สลับมุมมอง */}
           <div className="relative">
             <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-gray-200 rounded-xl px-4 py-2 pr-10 outline-none focus:ring-2 focus:ring-blue-400 bg-white text-sm cursor-pointer"
-            >
-              <option value="active">งานที่กำลังดำเนินการ</option>
-              <option value="completed">งานที่ดำเนินการสำเร็จ</option>
-              <option value="all">งานของฉันทั้งหมด</option>
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="border border-gray-200 rounded-xl px-4 py-2 pr-10 outline-none focus:ring-2 focus:ring-blue-400 bg-white text-sm cursor-pointer">
+                <option value="working">งานที่กำลังดำเนินการ</option>
+                <option value="waiting">งานที่รอตรวจ</option>
+                <option value="completed">งานที่ดำเนินการสำเร็จ</option>
             </select>
-          </div>
-        </div>
+                      </div>
+                    </div>
 
         <ProjectTable
           projects={filteredTasks}

@@ -30,6 +30,8 @@ function ProjectDetail() {
         id_users: ''
     });
 
+    const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+
     const handleAction = async (actionType, extraData = null) => {
         try {
             const dept = extraData?.department || '';
@@ -189,7 +191,7 @@ function ProjectDetail() {
                         <div className="flex justify-between items-center mb-6 ">
                             <h3 className="font-bold text-gray-800">ข้อมูล</h3>
                             
-                            {/* 🔴 เพิ่มเงื่อนไข && project.status !== 'COMPLETED' เพื่อซ่อนปุ่มแก้ไขเมื่อโครงการเสร็จสิ้นแล้ว */}
+                            {/* เพิ่มเงื่อนไข && project.status !== 'COMPLETED' เพื่อซ่อนปุ่มแก้ไขเมื่อโครงการเสร็จสิ้นแล้ว */}
                             {(user?.role === 'Admin' || user?.role === 'Project Director') && project.status !== 'COMPLETED' && (
                                 isEditing ? (
                                     <div className="flex space-x-4">
@@ -221,11 +223,11 @@ function ProjectDetail() {
                                 <span className="text-gray-500 w-[120px] flex-shrink-0">ประเภท :</span> 
                                 {isEditing ? (
                                     <select name="task_type" value={editData.task_type} onChange={handleInputChange} className="border border-gray-300 rounded-lg px-3 py-1 w-full max-w-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                        <option value="home">home</option>
-                                        <option value="condo">condo</option>
+                                        <option value="home">บ้าน</option>
+                                        <option value="condo">คอนโด</option>
                                     </select>
                                 ) : (
-                                    <span className="font-semibold">{project.task_type}</span>
+                                    <span className="font-semibold">{project.task_type === 'home' ? 'บ้าน' : project.task_type === 'condo' ? 'คอนโด' : '-'}</span>
                                 )}
                             </div>
                             
@@ -277,10 +279,78 @@ function ProjectDetail() {
                     </div>
 
                     <CommentSection taskId={id} user={user} project={project} tracking={tracking} />
+
+                    {user?.role === 'Admin' &&
+                        project.status !== 'COMPLETED' &&
+                        project.status !== 'CANCELLED' && (
+                            <div className="flex justify-center mt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCancelConfirmOpen(true)}
+                                    className="text-sm font-semibold text-gray-500 hover:text-red-500 hover:underline transition-colors"
+                                >
+                                    ยกเลิกโครงการ
+                                </button>
+                            </div>
+                    )}
                     
                 </div>
 
-                {/* ฝั่งขวา */}
+                {/* ยืนยันการยกเลิกโครงการ */}
+                {isCancelConfirmOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+
+                            {/* ไอคอน */}
+                            <div className="flex justify-center mb-4">
+                                    <span className="text-5xl">⚠️</span>
+                            </div>
+
+                            {/* หัวข้อ */}
+                            <h3 className="text-center text-xl font-bold text-gray-900">
+                                ยืนยันการยกเลิกโครงการ
+                            </h3>
+
+                            {/* รายละเอียด */}
+                            <p className="mt-3 text-center text-sm leading-relaxed text-gray-500">
+                                คุณต้องการยกเลิกโครงการนี้ใช่หรือไม่?
+                                <br/>
+                                หากยกเลิก โครงการนี้จะไม่สามารถดำเนินงานต่อได้
+                            </p>
+
+                            {/* ปุ่ม */}
+                            <div className="mt-6 flex gap-3">
+                                {/* ไม่ยกเลิก */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCancelConfirmOpen(false)}
+                                    className="flex-1 rounded-xl border border-gray-300 bg-white py-3 font-bold text-gray-700 transition-colors hover:bg-gray-100"
+                                >
+                                    ไม่ยกเลิก
+                                </button>
+
+                                {/* ยืนยันยกเลิก */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsCancelConfirmOpen(false);
+
+                                        handleAction('ASSIGN', {
+                                            department: 'CANCELLED',
+                                            memberId: null
+                                        });
+                                    }}
+                                    className="flex-1 rounded-xl bg-red-500 py-3 font-bold text-white transition-colors hover:bg-red-600"
+                                >
+                                    ยืนยันยกเลิก
+                                </button>
+
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ฝั่งด้านขวา */}
                 <div className="space-y-6">
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                         <ProjectActionBox

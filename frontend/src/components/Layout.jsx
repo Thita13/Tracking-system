@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import Notification from './Notification'; // นำเข้าคอมโพเนนต์ Notification ที่แยกไว้
 
-// 🔴 รับค่า hideSidebar เข้ามา (ค่าตั้งต้นเป็น false)
+// รับค่า hideSidebar เข้ามา (ค่าตั้งต้นเป็น false)
 function Layout({ children, hideSidebar = false }) {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -61,7 +61,7 @@ function Layout({ children, hideSidebar = false }) {
  const handleSearch = (e) => {
     if (e.key === 'Enter' || e.type === 'click') {
       if (searchQuery.trim() !== '') {
-        // 🔴 เช็คว่าถ้าอยู่หน้า "งานของฉัน" ให้ค้นหาในหน้านี้เลย
+        // เช็คว่าถ้าอยู่หน้า "งานของฉัน" ให้ค้นหาในหน้านี้เลย
         if (location.pathname.toLowerCase() === '/myprojects') {
           navigate('/myprojects', { state: { searchKeyword: searchQuery } });
         } else {
@@ -79,7 +79,7 @@ function Layout({ children, hideSidebar = false }) {
 
       {/* Header */}
       <header className="h-20 bg-[#188BFE] flex items-center justify-between px-6 z-20 shrink-0 shadow-md">
-        <div className="w-56 text-white font-black text-3xl tracking-widest">LOGO</div>
+        <div className="w-56 text-white font-black text-3xl tracking-widest">Tracking</div>
 
         <div className="flex-1 max-w-md ml-4">
           <div className="relative">
@@ -143,7 +143,7 @@ function Layout({ children, hideSidebar = false }) {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         
-        {/* 🔴 2. เช็คว่าถ้า hideSidebar เป็น false (หรือไม่ได้ส่งค่ามา) ถึงจะแสดงแถบซ้าย */}
+        {/* 2. เช็คว่าถ้า hideSidebar เป็น false (หรือไม่ได้ส่งค่ามา) ถึงจะแสดงแถบซ้าย */}
         {!hideSidebar && (
           <aside className="w-64 bg-[#FCFBF4] shadow-[4px_0_10px_rgba(0,0,0,0.05)] flex flex-col z-10 shrink-0">
             <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">

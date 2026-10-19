@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
 import UserModal from '../components/UserModal'; // นำเข้า Component ที่เราเพิ่งสร้าง
+import { useAuth } from '../context/AuthContext';
 
 function Users() {
+  const { user, setUser } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
@@ -60,11 +62,35 @@ function Users() {
       if (!response.ok) {
         throw new Error('ไม่สามารถบันทึกข้อมูลผู้ใช้งานได้');
       }
+
+      console.log('Auth user:', user);
+      console.log('Editing user:', editingUser);
+      console.log('Payload:', payload);
+      console.log('ID Auth:', user?.id_users);
+      console.log('ID Editing:', editingUser?.id_users);
+
+      // ถ้า Admin กำลังแก้ข้อมูลของตัวเอง
+      if (isEditing && user?.id_users === editingUser.id_users) {
+        const updatedUser = {
+          ...user,
+          username: payload.username,
+          email: payload.email,
+          phone: payload.phone,
+          role: payload.role
+        };
+
+        // อัปเดต AuthContext
+        setUser(updatedUser);
+
+        // อัปเดตข้อมูลที่เก็บไว้สำหรับการ Login
+        sessionStorage.setItem('user', JSON.stringify(updatedUser));
+      }
       toast.success(isEditing ? 'แก้ไขข้อมูลผู้ใช้งานเรียบร้อย!' : 'เพิ่มผู้ใช้งานใหม่เรียบร้อย!');
-      fetchUsers(); // รีเฟรชข้อมูลผู้ใช้งานหลังบันทึก
-      setIsModalOpen(false); // ปิด Modal หลังบันทึก
+      await fetchUsers();
+      setIsModalOpen(false);
 
     } catch (error) {
+      console.error(error);
       toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้ใช้งาน');
     }
   };
@@ -121,7 +147,7 @@ function Users() {
                 <th className="py-4 px-6 font-bold w-1/5">เบอร์โทร</th>
                 <th className="py-4 px-6 font-bold w-1/5">ตำแหน่ง</th>
                 <th className="py-4 px-6 font-bold w-1/5">วันที่สร้าง</th>
-                <th className="py-4 px-6 font-bold rounded-r-lg w-[120px] text-center">จัดการ</th>
+                <th className="py-4 px-6 font-bold rounded-r-lg w-[120px] text-center">แก้ไข</th>
               </tr>
             </thead>
             <tbody>

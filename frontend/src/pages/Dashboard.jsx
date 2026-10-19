@@ -8,7 +8,7 @@ function Dashboard() {
   const { projects, isLoading, error } = useProject();
   
   const stats = useMemo(() => {
-    if (!projects) return { total: 0, inProgress: 0, completed: 0, cancelled: 0 };
+    if (!projects) return { total: 0, inProgress: 0, completed: 0, cancelled: 0, home: 0, condo: 0 };
 
     const total = projects.length;
     const completed = projects.filter(p => p.status === 'COMPLETED').length;
@@ -17,9 +17,11 @@ function Dashboard() {
       ['NEW', 'INTERIOR', 'WAITING_CONFIRM', 'PRICING', 'DESIGN_3D'].includes(p.status)
     ).length;
 
-    const cancelled = 0;
+    const cancelled = projects.filter(p => p.status === 'CANCELLED').length;
+    const home = projects.filter(p => p.task_type === 'home').length;
+    const condo = projects.filter(p => p.task_type === 'condo').length;
 
-    return { total, inProgress, completed, cancelled };
+    return { total, inProgress, completed, cancelled, home, condo };
   }, [projects]);
 
   const statCards = [
@@ -27,36 +29,36 @@ function Dashboard() {
       id: 1,
       title: 'โครงการทั้งหมด',
       count: stats.total,
-      bgColor: 'bg-white', // สีขาว
-      borderColor: 'border-gray-200',
-      textColor: 'text-gray-800',
+      bgColor: 'bg-[#F8FAFC]', // สีขาว
+      borderColor: 'border-[#E2E8F0]',
+      textColor: 'text-[#1E293B]',
       filterValue: 'โครงการทั้งหมด'
     },
     {
       id: 2,
       title: 'โครงการที่กำลังดำเนินการ',
       count: stats.inProgress,
-      bgColor: 'bg-[#6EE7B7]', // สีเขียวมิ้นท์ (แกะสีจาก Mockup)
-      borderColor: 'border-[#34D399]',
-      textColor: 'text-gray-900',
+      bgColor: 'bg-[#DBEAFE]', // สีฟ้า 
+      borderColor: 'border-[#93C5FD]',
+      textColor: 'text-[#1E40AF]',
       filterValue: 'โครงการที่กำลังดำเนินการ'
     },
     {
       id: 3,
       title: 'โครงการที่ดำเนินการสำเร็จ',
       count: stats.completed,
-      bgColor: 'bg-[#A5B4FC]', // สีฟ้าอมม่วง (แกะสีจาก Mockup)
-      borderColor: 'border-[#818CF8]',
-      textColor: 'text-gray-900',
+      bgColor: 'bg-[#D1FAE5]', // สีเขียว
+      borderColor: 'border-[#6EE7B7]',
+      textColor: 'text-[#065F46]',
       filterValue: 'โครงการที่ดำเนินการสำเร็จ'
     },
     {
       id: 4,
       title: 'โครงการที่ไม่ได้ดำเนินการต่อ',
       count: stats.cancelled,
-      bgColor: 'bg-[#FDA4AF]', // สีแดง/ชมพู (แกะสีจาก Mockup)
-      borderColor: 'border-[#FB7185]',
-      textColor: 'text-gray-900',
+      bgColor: 'bg-[#FFE4E6]', // สีแดง/ชมพู (แกะสีจาก Mockup)
+      borderColor: 'border-[#FDA4AF]',
+      textColor: 'text-[#9F1239]',
       filterValue: 'โครงการที่ไม่ได้ดำเนินการต่อ'
     },
   ];

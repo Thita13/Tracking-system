@@ -34,7 +34,9 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
               </td>
             </tr>
           ) : projects && projects.length > 0 ? (
-            projects.map((project) => (
+            projects.map((project) => {
+              console.log('PROJECT DATA:', project);
+              return (
               <tr
                 key={project.id}
                 className="border-b border-gray-100 last:border-none hover:bg-gray-50 transition-colors"
@@ -43,7 +45,7 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
                 <td className="py-4 px-5 font-bold text-gray-800">{project.name}</td>
                 <td className="py-4 px-5 text-gray-700">{project.customer}</td>
                 <td className="py-4 px-5 text-gray-700">{project.createdDate}</td>
-                <td className="py-4 px-5 text-gray-700">{project.type}</td>
+                <td className="py-4 px-5 text-gray-700">{project.task_type === 'home' ? 'บ้าน' : project.task_type === 'condo' ? 'คอนโด' : '-'}</td>
 
                 <td className="py-4 px-5">
                   {project.status && (
@@ -64,7 +66,8 @@ function ProjectTable({ projects, isLoading, error, renderActionButtons, systemR
                   </Link>
                 </td>
               </tr>
-            ))
+            );
+            })
           ) : (
             <tr>
               <td colSpan="6" className="py-10 text-center text-gray-500 font-medium">

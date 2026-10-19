@@ -88,7 +88,7 @@ function ChangePassword() {
                         type={showOldPassword ? "text" : "password"}
                         required
                         value={oldPassword}
-                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        // เพิ่ม .replace() เพื่อตัดภาษาไทยออก
                         onChange={(e) => setOldPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
@@ -112,7 +112,7 @@ function ChangePassword() {
                         type={showNewPassword ? "text" : "password"}
                         required
                         value={newPassword}
-                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        // เพิ่ม .replace() เพื่อตัดภาษาไทยออก
                         onChange={(e) => setNewPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
@@ -136,7 +136,7 @@ function ChangePassword() {
                         type={showConfirmPassword ? "text" : "password"}
                         required
                         value={confirmPassword}
-                        // 🔴 เพิ่ม .replace() เพื่อตัดภาษาไทยออก
+                        // เพิ่ม .replace() เพื่อตัดภาษาไทยออก
                         onChange={(e) => setConfirmPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
@@ -172,7 +172,7 @@ function ChangePassword() {
                 className={`px-6 py-2.5 rounded-lg text-white font-bold transition-colors shadow-sm text-[15px] ${isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-[#4068FF] hover:bg-blue-600'
                   }`}
               >
-                {isLoading ? 'กำลังประมวลผล...' : 'เปลี่ยนรหัสผ่าน'}
+                {isLoading ? 'กำลังประมวลผล...' : 'บันทึก'}
               </button>
             </div>
           </form>
