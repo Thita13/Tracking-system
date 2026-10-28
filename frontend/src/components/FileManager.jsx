@@ -10,6 +10,44 @@ export default function FileManager({
     isEditing       
 }) {
     if (!project || !user) return null;
+    
+    // ข้อจำกัดการอัปโหลดไฟล์
+    const MAX_FILES = 7;
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MiB
+
+    const formatFileSize = (bytes) => {
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(0)} KB`;
+        }
+
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    };
+
+    // ตรวจสอบก่อนส่งไฟล์ไปยัง onUpload
+    const handleFileChange = (event) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        // จำกัดจำนวนไฟล์ในโครงการ
+        if (files.length >= MAX_FILES) {
+            alert(`โครงการนี้อัปโหลดได้สูงสุด ${MAX_FILES} ไฟล์`);
+            event.target.value = '';
+            return;
+        }
+
+        // จำกัดขนาดไฟล์ต่อไฟล์
+        if (file.size > MAX_FILE_SIZE) {
+            alert(
+                `ไฟล์มีขนาด ${formatFileSize(file.size)} ` +
+                `เกินขนาดสูงสุด ${formatFileSize(MAX_FILE_SIZE)}`
+            );
+            event.target.value = '';
+            return;
+        }
+        // ผ่านการตรวจสอบทั้งหมดแล้ว
+        onUpload(event);
+    };
 
     const currentStatus = project.status;
     
@@ -292,7 +330,9 @@ export default function FileManager({
                 <h5 className="font-semibold text-gray-700 text-[13px] mb-3 flex items-center">
                     <span className="mr-2">📂</span> ไฟล์งานของฉัน
                 </h5>
-                <div className="flex flex-col gap-2">
+                <p className="text-xs text-gray-500 mb-2">รองรับ .cad, .dwg, .dxf, .pdf, .jpg, .jpeg, .png, .doc</p>
+                <p className="text-xs text-gray-500 mb-2">เลือกได้สูงสุด 7 ไฟล์ ขนาดไม่เกิน 50 MB ต่อไฟล์</p>
+                <div className="flex flex-wrap items-center gap-3">
                     {myWorkFiles.length > 0 ? myWorkFiles.map((file, idx) => {
                         const ext = file.file_name ? file.file_name.split('.').pop().toUpperCase() : 'FILE';
                         const isPDF = ext === 'PDF';
@@ -337,9 +377,7 @@ export default function FileManager({
                                 )}
                             </div>
                         );
-                    }) : (
-                        <span className="text-gray-400 text-sm italic px-2">ยังไม่มีไฟล์ของฉันในโครงการนี้</span>
-                    )}
+                    }): null}
                 </div>
 
                 {canUploadFiles && (
@@ -349,7 +387,7 @@ export default function FileManager({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
                             Add file
-                            <input type="file" accept=".cad,.dwg,.dxf,.pdf,.jpg,.jpeg,.png,.doc" className="hidden" onChange={onUpload} />
+                            <input type="file" accept=".cad,.dwg,.dxf,.pdf,.jpg,.jpeg,.png,.doc" className="hidden" onChange={handleFileChange} />
                         </label>
                     </div>
                 )}

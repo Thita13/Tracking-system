@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./config/db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -27,11 +28,112 @@ const storage = new CloudinaryStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+const MAX_FILES = 7;
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MiB
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: MAX_FILE_SIZE,
+        files: MAX_FILES
+    },
+    fileFilter: (req, file, cb) => {
+        // แก้ชื่อไฟล์ภาษาไทยที่ถูกถอดรหัสผิด
+        const originalName = file.originalname;
+
+        if (/à¸|à¹/.test(originalName)) {
+            const decodedName = Buffer
+                .from(originalName, 'latin1')
+                .toString('utf8');
+
+            // ใช้ชื่อที่แก้แล้วเมื่อถอดรหัสได้โดยไม่มีอักขระแปลก
+            if (!decodedName.includes('\uFFFD')) {
+                file.originalname = decodedName;
+            }
+        }
+
+        const allowedExtensions =
+            /\.(cad|dwg|dxf|pdf|jpg|jpeg|png|doc)$/i;
+
+        if (!allowedExtensions.test(file.originalname)) {
+            return cb(
+                new Error(
+                    'รองรับเฉพาะไฟล์ CAD, DWG, DXF, PDF, JPG, PNG และ DOC'
+                )
+            );
+        }
+
+        cb(null, true);
+    }
+});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            message: 'กรุณาเข้าสู่ระบบก่อนใช้งาน'
+        });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.status(401).json({
+            message: 'Token ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่'
+        });
+    }
+};
+
+
+app.get('/test-auth', verifyToken, (req, res) => {
+    res.json({
+        message: 'ตรวจสอบ Token สำเร็จ',
+        user: req.user
+    });
+});
+
+const requireRole = (allowedRoles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({
+                message: 'กรุณาเข้าสู่ระบบก่อนใช้งาน'
+            });
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({
+                message: 'คุณไม่มีสิทธิ์ใช้งานส่วนนี้'
+            });
+        }
+
+        next();
+    };
+};
+
+
+app.get(
+    '/test-admin',
+    verifyToken,
+    requireRole('Admin'),
+    (req, res) => {
+        res.json({
+            message: 'Admin access granted',
+            user: req.user
+        });
+    }
+);
 
 // Upload folder
 const uploadDir = path.join(__dirname, 'uploads');
@@ -45,27 +147,10 @@ app.use(
     express.static(uploadDir)
 );
 
-// Home
-app.get('/', (req, res) => {
-    res.send('Backend Running');
-});
-
-// Test Database
-app.get('/test-db', (req, res) => {
-
-    const sql = 'SELECT * FROM users';
-
-    db.query(sql, (err, results) => {
-
-        if (err) {
-            console.log(err);
-
-            return res.status(500).json({
-                error: err.message
-            });
-        }
-
-        res.json(results);
+// ตรวจว่า Backend ตอบสนองได้
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok'
     });
 });
 
@@ -572,8 +657,28 @@ app.post('/login', (req, res) => {
                 });
             }
 
+            if (!process.env.JWT_SECRET) {
+                console.error('JWT_SECRET is not configured');
+
+                return res.status(500).json({
+                    message: 'เกิดข้อผิดพลาดในการตั้งค่าเซิร์ฟเวอร์'
+                });
+            }
+
+            const token = jwt.sign(
+                {
+                    id: user.id_users,
+                    role: user.role
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: '2h'
+                }
+            );
+
             res.json({
                 message: 'Login success',
+                token: token,
                 user: {
                     id: user.id_users,
                     username: user.username,
@@ -625,9 +730,40 @@ app.get('/users/by-role/:role', (req, res) => {
 // Create Task
 app.post(
     '/tasks',
-    upload.single('file'),
-    (req, res) => {
+    (req, res, next) => {
+        upload.array('files', MAX_FILES)(
+            req,
+            res,
+            (err) => {
+                if (!err) {
+                    return next();
+                }
 
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        message:
+                            'แต่ละไฟล์ต้องมีขนาดไม่เกิน 50 MB'
+                    });
+                }
+
+                if (
+                    err.code === 'LIMIT_FILE_COUNT' ||
+                    err.code === 'LIMIT_UNEXPECTED_FILE'
+                ) {
+                    return res.status(400).json({
+                        message: 'แนบไฟล์ได้สูงสุด 7 ไฟล์'
+                    });
+                }
+
+                return res.status(400).json({
+                    message:
+                        err.message ||
+                        'เกิดข้อผิดพลาดในการอัปโหลดไฟล์'
+                });
+            }
+        );
+    },
+    (req, res) => {
         const {
             task_name,
             task_type,
@@ -638,6 +774,21 @@ app.post(
             id_users,
             assigned_to
         } = req.body;
+
+        const files = req.files || [];
+        const creatorId = parseInt(id_users, 10);
+
+        // ตรวจสอบขนาดรวมของไฟล์
+        const totalSize = files.reduce(
+            (total, file) => total + file.size,
+            0
+        );
+
+        if (totalSize > 350 * 1024 * 1024) {
+            return res.status(400).json({
+                message: 'ขนาดไฟล์รวมต้องไม่เกิน 350 MB'
+            });
+        }
 
         const sql = `
             INSERT INTO tasks
@@ -740,55 +891,63 @@ app.post(
                                     );
                                 }
 
-                                if (req.file) {
-
-                                    const insertFileSql = `
-                                        INSERT INTO files
-                                        (
-                                            file_name,
-                                            file_path,
-                                            version,
-                                            id_task,
-                                            id_users
-                                        )
-                                        VALUES (?, ?, 1, ?, ?)
-                                    `;
-
-                                    db.query(
-                                        insertFileSql,
-                                        [
-                                            req.file.originalname,
-                                            req.file.path,
-                                            newTaskId,
-                                            parseInt(id_users)
-                                        ],
-                                        fileErr => {
-
-                                            if (fileErr) {
-                                                return res.status(500).json({
-                                                    message:
-                                                        'บันทึกงานสำเร็จ แต่บันทึกไฟล์ไม่สำเร็จ'
-                                                });
-                                            }
-
-                                            res.status(201).json({
-                                                message:
-                                                    'สร้างงานและบันทึกไฟล์สำเร็จ',
-                                                taskId:
-                                                    newTaskId
-                                            });
-                                        }
-                                    );
-
-                                } else {
-
-                                    res.status(201).json({
-                                        message:
-                                            'สร้างงานสำเร็จ',
-                                        taskId:
-                                            newTaskId
+                                // ไม่มีไฟล์แนบ
+                                if (files.length === 0) {
+                                    return res.status(201).json({
+                                        message: 'สร้างงานสำเร็จ',
+                                        taskId: newTaskId
                                     });
                                 }
+
+                                // บันทึกข้อมูลไฟล์ทั้งหมดลงตาราง files
+                                const placeholders = files
+                                    .map(() => '(?, ?, 1, ?, ?)')
+                                    .join(', ');
+
+                                const insertFileSql = `
+                                    INSERT INTO files
+                                    (
+                                        file_name,
+                                        file_path,
+                                        version,
+                                        id_task,
+                                        id_users
+                                    )
+                                    VALUES ${placeholders}
+                                `;
+
+                                const fileValues = files.flatMap(file => [
+                                    file.originalname,
+                                    file.path,
+                                    newTaskId,
+                                    creatorId
+                                ]);
+
+                                db.query(
+                                    insertFileSql,
+                                    fileValues,
+                                    (fileErr) => {
+                                        if (fileErr) {
+                                            console.error(
+                                                'File Database Error:',
+                                                fileErr
+                                            );
+
+                                            return res.status(500).json({
+                                                message:
+                                                    'สร้างงานแล้ว แต่บันทึกข้อมูลไฟล์ไม่สำเร็จ',
+                                                taskId: newTaskId
+                                            });
+                                        }
+
+                                        return res.status(201).json({
+                                            message:
+                                                'สร้างงานและบันทึกไฟล์สำเร็จ',
+                                            taskId: newTaskId,
+                                            fileCount: files.length
+                                        });
+                                    }
+                                );
                             }
                         );
                     }
@@ -2406,7 +2565,7 @@ app.get(
 
 // START SERVER
 app.listen(
-    5000,
+    5000,'0.0.0.0',
     () => {
         console.log(
             'Server running on port 5000'

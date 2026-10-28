@@ -30,7 +30,24 @@ function ChangePassword() {
       toast.error('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
       return;
     }
+    //กำหนดการตั้งรหัสผ่าน
+    // ตรวจสอบว่ามีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว (A-Z) หรือไม่
+    if (!/[A-Z]/.test(newPassword)) {
+      toast.error('รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว');
+      return;
+    }
 
+    // ตรวจสอบว่ามีตัวเลขอย่างน้อย 1 ตัว (0-9) หรือไม่
+    if (!/[0-9]/.test(newPassword)) {
+      toast.error('รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว');
+      return;
+    }
+
+    // ตรวจสอบว่ามีอักขระพิเศษอย่างน้อย 1 ตัวหรือไม่
+    if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      toast.error('รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว เช่น @ # !');
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -109,11 +126,15 @@ function ChangePassword() {
                     </label>
                     <div className="relative">
                       <input
-                        type={showNewPassword ? "text" : "password"}
+                        type={showNewPassword ? 'text' : 'password'}
                         required
+                        minLength={6}
+                        pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{6,}"
+                        title="ต้องมีอย่างน้อย 6 ตัวอักษร ประกอบด้วยตัวพิมพ์ใหญ่ ตัวเลข และอักขระพิเศษ"
                         value={newPassword}
-                        // เพิ่ม .replace() เพื่อตัดภาษาไทยออก
-                        onChange={(e) => setNewPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))}
+                        onChange={(e) =>
+                          setNewPassword(e.target.value.replace(/[\u0E00-\u0E7F]/g, ''))
+                        }
                         className="w-full px-5 py-3 pr-12 border border-gray-400 rounded-xl bg-white shadow-[0_2px_4px_rgba(0,0,0,0.02)] text-gray-800 text-[15px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       />
                       <button
@@ -123,7 +144,12 @@ function ChangePassword() {
                       >
                         {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
+                      
                     </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร ประกอบด้วย
+                      ตัวพิมพ์ใหญ่ (A-Z) ตัวเลข (0-9) และอักขระพิเศษ เช่น . @ # !
+                    </p>
                   </div>
 
                   {/* ยืนยันรหัสผ่านใหม่ */}
@@ -148,6 +174,10 @@ function ChangePassword() {
                         {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                       </button>
                     </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร ประกอบด้วย
+                      ตัวพิมพ์ใหญ่ (A-Z) ตัวเลข (0-9) และอักขระพิเศษ เช่น . @ # !
+                    </p>
                   </div>
 
                 </div>

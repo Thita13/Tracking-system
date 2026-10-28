@@ -7,6 +7,8 @@ import { AuthContext } from '../context/AuthContext';
 function CreateProject() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const MAX_FILES = 7;
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB ต่อไฟล์
 
   const [formData, setFormData] = useState({
     projectName: '',
@@ -15,7 +17,7 @@ function CreateProject() {
     customerPhone: '',
     assignedInterior: '',
     details: '',
-    file: null
+    files: []
   });
 
   const [interiorStaff, setInteriorStaff] = useState([]);
@@ -43,11 +45,56 @@ function CreateProject() {
     }
   };
 
+  const ALLOWED_EXTENSIONS = [
+    '.cad', '.dwg', '.dxf', '.pdf',
+    '.jpg', '.jpeg', '.png', '.doc'
+  ];
+
   const handleFileChange = (e) => {
-    const uploadedFile = e.target.files[0];
-    if (uploadedFile) {
-      setFormData((prev) => ({ ...prev, file: uploadedFile }));
+    const selectedFiles = Array.from(e.target.files || []);
+
+    if (selectedFiles.length === 0) return;
+
+    const existingFiles = formData.files || [];
+    const combinedFiles = [...existingFiles, ...selectedFiles];
+
+    // ตรวจจำนวนไฟล์
+    if (combinedFiles.length > MAX_FILES) {
+      toast.error('แนบไฟล์ได้สูงสุด 7 ไฟล์');
+      e.target.value = '';
+      return;
     }
+
+    // ตรวจนามสกุลไฟล์
+    const invalidFile = selectedFiles.find((file) => {
+      const dotIndex = file.name.lastIndexOf('.');
+      const extension = dotIndex >= 0
+        ? file.name.slice(dotIndex).toLowerCase()
+        : '';
+
+      return !ALLOWED_EXTENSIONS.includes(extension);
+    });
+
+    if (invalidFile) {
+      toast.error(`ไม่รองรับไฟล์ ${invalidFile.name}`);
+      e.target.value = '';
+      return;
+    }
+
+    // ตรวจขนาดต่อไฟล์
+    if (combinedFiles.some(file => file.size > MAX_FILE_SIZE)) {
+      toast.error('แต่ละไฟล์ต้องมีขนาดไม่เกิน 50 MB');
+      e.target.value = '';
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      files: combinedFiles
+    }));
+
+    // เลือกไฟล์เดิมซ้ำได้
+    e.target.value = '';
   };
 
   const handleSubmit = async () => {
@@ -79,9 +126,9 @@ function CreateProject() {
     data.append('id_users', user.id);
     data.append('assigned_to', formData.assignedInterior);
 
-    if (formData.file) {
-      data.append('file', formData.file);
-    }
+    formData.files.forEach((file) => {
+      data.append('files', file);
+    });
 
     try {
       const response = await fetch('http://localhost:5000/tasks', {
@@ -181,33 +228,123 @@ function CreateProject() {
             <textarea name="details" value={formData.details} onChange={handleChange} rows="4" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
           </div>
 
-          {/* ส่วนแนบไฟล์ */}
+          {/* ส่วนแนบไฟล์โครงการ */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">แนบไฟล์โครงการ (ถ้ามี)</label>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              แนบไฟล์โครงการ (ถ้ามี)
+            </label>
+
+            <p className="text-sm text-gray-500 mb-2">
+              รองรับ .cad, .dwg, .dxf, .pdf, .jpg, .jpeg, .png, .doc
+            </p>
+
+            <p className="text-sm text-gray-500 mb-2">
+              เลือกได้สูงสุด 7 ไฟล์ ขนาดไม่เกิน 50 MB ต่อไฟล์
+            </p>
+
             <div className="flex items-center gap-4">
               <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
                 Add file
-                <input type="file" className="hidden" onChange={handleFileChange} />
+
+                <input
+                  type="file"
+                  multiple
+                  accept=".cad,.dwg,.dxf,.pdf,.jpg,.jpeg,.png,.doc"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               </label>
-              {formData.file ? (
-                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border border-gray-200 rounded-md shadow-sm max-w-md flex-1">
-                  <span className="text-sm font-medium text-gray-700 truncate">{formData.file.name}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setFormData(prev => ({ ...prev, file: null }))}
-                    className="text-gray-400 hover:text-red-500 ml-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <span className="text-sm text-gray-400 italic">ยังไม่ได้เลือกไฟล์</span>
-              )}
             </div>
+
+            {/* รายการไฟล์ */}
+            {formData.files.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {formData.files.map((file, index) => {
+                  const extension = file.name
+                    .split('.')
+                    .pop()
+                    .toLowerCase();
+
+                  const isPdf = extension === 'pdf';
+                  const isImage = [
+                    'jpg', 'jpeg', 'png'
+                  ].includes(extension);
+                  return (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className="flex items-center gap-3
+                      w-full p-3 sm:px-5 sm:py-3
+                      bg-white border border-gray-200
+                      rounded-lg shadow-sm
+                      hover:border-gray-300 transition"
+                  >
+                    {/* ชื่อไฟล์และขนาด */}
+                    <div className="flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fileUrl = URL.createObjectURL(file);
+                          const newWindow = window.open(fileUrl, '_blank');
+
+                          if (!newWindow) {
+                            URL.revokeObjectURL(fileUrl);
+                            toast.error('เบราว์เซอร์บล็อกหน้าต่างเปิดไฟล์ กรุณาอนุญาต Pop-ups');
+                            return;
+                          }
+
+                          newWindow.addEventListener('load', () => {
+                            URL.revokeObjectURL(fileUrl);
+                          }, { once: true });
+                        }}
+                        className="text-sm font-semibold text-gray-800
+                          hover:text-blue-600 hover:underline
+                          text-left break-all"
+                        title="คลิกเพื่อเปิดไฟล์"
+                      >
+                        {file.name}
+                      </button>
+
+                      <span className="text-sm text-gray-400 ml-2">
+                        ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                      </span>
+                    </div>
+
+                    {/* ปุ่มลบไฟล์ */}
+                    <button
+                      type="button"
+                      aria-label={`ลบไฟล์ ${file.name}`}
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          files: prev.files.filter(
+                            (_, i) => i !== index
+                          )
+                        }));
+                      }}
+                      className="flex-shrink-0 p-1
+                      text-gray-400 hover:text-red-500
+                        transition"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                      >
+                        <path d="m18 6-12 12M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
 
           {/* มอบหมายงาน */}
           <div>

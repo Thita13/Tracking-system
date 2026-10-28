@@ -198,6 +198,7 @@ export default function UserModal({ isOpen, onClose, userToEdit, onSave, onReset
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-1.5">อีเมล</label>
+                            <p className="text-xs text-gray-500 mb-1.5">กรุณาใช้อีเมล @gmail.com เท่านั้น</p>
                             <input
                                 type="text"
                                 value={formData.email || ''}

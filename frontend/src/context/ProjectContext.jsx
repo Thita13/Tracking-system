@@ -24,7 +24,7 @@ export function ProjectProvider({ children }) {
           name: item.task_name,
           customer: item.customer_name,
           createdDate: new Date(item.created_at).toLocaleDateString('th-TH'),
-          status: item.status, // มั่นใจว่าค่านี้ตรงกับ ENUM ใน DB
+          status: item.status,
           task_type: item.task_type,
           assignedTo: item.assignedTo || null 
         }));

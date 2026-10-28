@@ -33,11 +33,11 @@ function Login() {
       const data = await response.json();
       
       if (response.ok) {
-        toast.success('เข้าสู่ระบบสำเร็จ'); 
-        //  เปลี่ยนจาก localStorage เป็น sessionStorage
+        toast.success('เข้าสู่ระบบสำเร็จ');
+        sessionStorage.setItem('token', data.token);
         sessionStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
-        navigate('/dashboard');
+        navigate('/dashboard'); //เปลี่ยนหน้าไป Dashboard
       } else {
         
         let errorMessage = data.message;
@@ -56,10 +56,10 @@ function Login() {
   return (
     <div className="flex h-screen w-full font-sans">
       
-      {/* 🔴 2. วางคอมโพเนนต์ Toaster ไว้ด้านบนสุดของ UI */}
+      {/* 2. วางคอมโพเนนต์ Toaster ไว้ด้านบนสุดของ UI */}
       <Toaster position="top-center" reverseOrder={false} />
 
-      <div className="flex w-full flex-col items-center justify-center bg-blue-500 p-8">
+      <div className="flex w-full flex-col items-center justify-center bg-blue-200 p-8">
         <div className="w-full max-w-md rounded-3xl bg-white p-10 shadow-xl md:p-12">
           
           <div className="mb-10 text-center">
@@ -69,7 +69,8 @@ function Login() {
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-600">อีเมล</label>
+              <label className="mb-1.5 block text-md font-bold text-gray-600">อีเมล</label>
+              
               <input
                 type="email"
                 required
@@ -83,7 +84,7 @@ function Login() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-600">รหัสผ่าน</label>
+              <label className="mb-1.5 block text-md font-bold text-gray-600">รหัสผ่าน</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}

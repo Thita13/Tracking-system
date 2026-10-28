@@ -10,9 +10,7 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     const sectionRef = useRef(null); // 2. สร้าง ref สำหรับคลุมทั้งกล่องคอมเมนต์
     const location = useLocation(); // 3. เรียกใช้ location เพื่อเช็ค URL
 
-    // ===============================================================
     // โลจิกเช็คสิทธิ์การคอมเมนต์
-    // ===============================================================
     let canComment = false;
     const isAdminOrPD = user?.role === 'Admin' || user?.role === 'Project Director';
 
@@ -70,7 +68,7 @@ export default function CommentSection({ taskId, user, project, tracking }) {
             commentContainerRef.current.scrollTop = commentContainerRef.current.scrollHeight;
         }
 
-        // 🔴 4. ข. เช็คว่าถ้าคลิกมาจากแจ้งเตือนคอมเมนต์ (มี #comments) ให้เลื่อนหน้าจอลงมา
+        // 4. ข. เช็คว่าถ้าคลิกมาจากแจ้งเตือนคอมเมนต์ (มี #comments) ให้เลื่อนหน้าจอลงมา
         if (location.hash === '#comments' && sectionRef.current) {
             setTimeout(() => {
                 sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -121,7 +119,7 @@ export default function CommentSection({ taskId, user, project, tracking }) {
     };
 
     return (
-        // 🔴 5. ใส่ ref={sectionRef} และ id="comments" ไว้ที่กล่องนอกสุด
+        // 5. ใส่ ref={sectionRef} และ id="comments" ไว้ที่กล่องนอกสุด
         <div id="comments" ref={sectionRef} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative mt-6">
             <h3 className="font-bold text-gray-800 mb-4">คอมเมนต์เพิ่มเติม</h3>
 

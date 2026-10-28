@@ -2,7 +2,7 @@
 const API_BASE_URL = 'http://localhost:5000';
 
 export const apiClient = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token'); // หากมีระบบ Token
+  const token = sessionStorage.getItem('token');
 
   const headers = {
     'Content-Type': 'application/json',
